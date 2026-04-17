@@ -541,7 +541,7 @@ window.POLR_API_BASE = API_BASE;
 var CONTACT_CONFIG_DEFAULT = {
   // POLR HQ (main)
   hq: {
-    name:    'Refined Recovery Network',
+    name:    'Refined Recovery Recovery',
     shortName: 'POLR',
     phone:   '{POLR_PHONE}',
     email:   'admin@polrnetwork.com',
@@ -617,7 +617,7 @@ function resolveContact(text, platform, campusKey, session) {
   if (!text || typeof text !== 'string') return text;
   var cfg = getContactConfig(platform, campusKey, session);
   return text
-    .replace(/\{POLR_NAME\}/g,    cfg.name    || 'Refined Recovery Network')
+    .replace(/\{POLR_NAME\}/g,    cfg.name    || 'Refined Recovery Recovery')
     .replace(/\{POLR_PHONE\}/g,   cfg.phone   || '{POLR_PHONE}')
     .replace(/\{POLR_EMAIL\}/g,   cfg.email   || 'admin@polrnetwork.com')
     .replace(/\{POLR_WEBSITE\}/g, cfg.website || 'polrnetwork.com')
@@ -1548,7 +1548,7 @@ function initPlatformState() {
       reflectionName:'POLR Reflection', pointsName:'POLR Points',
       signaturePhrase:'Walk well.', adminTitle:'POLR Director',
       staffTitle:'Ambassador', programName:'12-Step Recovery',
-      siteDomain:'{POLR_WEBSITE}', orgName:'Refined Recovery Network'
+      siteDomain:'{POLR_WEBSITE}', orgName:'Refined Recovery Recovery'
     }
   };
   try {
@@ -1621,7 +1621,7 @@ function generateMoneyFlowDiagram() {
   '<\/style><\/head><body>' +
 
   '<div class="title">Refined Recovery Network — Money Flow Diagram<\/div>' +
-  '<div class="sub">How revenue enters, moves through, and exits the Refined Recovery Network ecosystem<\/div>' +
+  '<div class="sub">How revenue enters, moves through, and exits the Refined Recovery Recovery ecosystem<\/div>' +
   '<hr class="gold">' +
 
   // INFLOWS
@@ -1691,7 +1691,7 @@ function generateMoneyFlowDiagram() {
 
   // CENTER — POLR HQ
   '<div style="padding:12px 16px;background:linear-gradient(135deg,#0c1a2e,#162038);border-radius:12px;text-align:center;margin-bottom:16px;">' +
-  '<div style="font-family:\'EB Garamond\',serif;font-size:16pt;color:#c8913a;margin-bottom:4px;">Refined Recovery Network, INC.<\/div>' +
+  '<div style="font-family:\'EB Garamond\',serif;font-size:16pt;color:#c8913a;margin-bottom:4px;">Refined Recovery RECOVERY, INC.<\/div>' +
   '<div style="color:rgba(255,255,255,0.7);font-size:8.5pt;">All revenue flows through POLR operations. Funds are allocated to direct ministry, staffing, housing operations, expansion, and platform development.<\/div>' +
   '<\/div>' +
 
@@ -1749,7 +1749,7 @@ function generateMoneyFlowDiagram() {
 
   '<\/div>' +
 
-  '<div class="fn">Refined Recovery Network Platform — Money Flow Diagram — Refined Recovery Network, Inc. — {POLR_WEBSITE} — Confidential. Internal use only.<\/div>' +
+  '<div class="fn">Refined Recovery Network Platform — Money Flow Diagram — Refined Recovery Recovery, Inc. — {POLR_WEBSITE} — Confidential. Internal use only.<\/div>' +
   '<\/body><\/html>';
   var w=window.open('','_blank','width=1200,height=900');
   if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},900);}
@@ -1911,7 +1911,7 @@ function generateChainOfCommandDiagram() {
   }).join('') +
   '<\/div><\/div>' +
 
-  '<div class="fn">Refined Recovery Network Platform — Chain of Command — Refined Recovery Network, Inc. — {POLR_WEBSITE} — Confidential. Internal use only.<\/div>' +
+  '<div class="fn">Refined Recovery Network Platform — Chain of Command — Refined Recovery Recovery, Inc. — {POLR_WEBSITE} — Confidential. Internal use only.<\/div>' +
   '<\/body><\/html>';
   var w=window.open('','_blank','width=1200,height=900');
   if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},900);}
@@ -3123,7 +3123,7 @@ function EventsBuilder({ platform, update, toast, session }) {
   };
 
   var shareEvent = function(evt) {
-    var text = evt.title + ' — ' + (evt.date || '') + (evt.startTime ? ' at ' + evt.startTime : '') + (evt.location ? ' · ' + evt.location : '') + ' · Refined Recovery Network';
+    var text = evt.title + ' — ' + (evt.date || '') + (evt.startTime ? ' at ' + evt.startTime : '') + (evt.location ? ' · ' + evt.location : '') + ' · Refined Recovery Recovery';
     if (navigator.share) {
       navigator.share({ title: evt.title, text: text, url: 'https://{POLR_WEBSITE}' }).catch(function(){});
     } else {
@@ -3898,7 +3898,7 @@ function DiscipleshipEngine({ platform, update, toast, session }) {
       id: Date.now().toString(), stepNum: selStep, version: 1,
       title: '', author: (session&&session.name)||'POLR Staff', duration: '45 min',
       status: 'draft', // draft | review | doctrine_review | approved | archived
-      header: { orgName:'Refined Recovery Network', stepLabel:'Step '+selStep, date:new Date().toLocaleDateString() },
+      header: { orgName:'Refined Recovery Recovery', stepLabel:'Step '+selStep, date:new Date().toLocaleDateString() },
       footer: { text:'"Walk well." — {POLR_NAME} · {POLR_WEBSITE} · {POLR_PHONE}', show:true },
       sections: [
         { id:'s1',  type:'scripture',   label:'Key Scripture',          content:'', ref:'', scriptureId:'', order:0 },
@@ -4213,7 +4213,7 @@ function DiscipleshipEngine({ platform, update, toast, session }) {
       React.createElement('div',{style:{background:'white',borderRadius:14,padding:'3rem',maxWidth:720,margin:'0 auto',color:'#1a1a2a',fontFamily:'Georgia,serif',boxShadow:'0 8px 48px rgba(0,0,0,0.15)'}},
         // Header
         React.createElement('div',{style:{textAlign:'center',borderBottom:'3px solid #c8913a',paddingBottom:'1.5rem',marginBottom:'2rem'}},
-          React.createElement('div',{style:{fontSize:'0.6rem',letterSpacing:'0.22em',textTransform:'uppercase',color:'#888',marginBottom:'0.3rem'}},'Refined Recovery Network'),
+          React.createElement('div',{style:{fontSize:'0.6rem',letterSpacing:'0.22em',textTransform:'uppercase',color:'#888',marginBottom:'0.3rem'}},'Refined Recovery RECOVERY'),
           React.createElement('div',{style:{fontSize:'0.7rem',fontWeight:700,color:'#c8913a',letterSpacing:'0.15em',textTransform:'uppercase',marginBottom:'0.75rem'}},'STEP '+lesson.stepNum+' · '+(isLeader?'LEADER GUIDE':'STUDENT WORKBOOK')),
           React.createElement('h1',{style:{fontFamily:'Georgia,serif',fontSize:'1.9rem',fontWeight:700,color:'#0c1a2e',margin:'0 0 0.3rem'}},lesson.title),
           React.createElement('div',{style:{fontSize:'0.75rem',color:'#888',letterSpacing:'0.06em'}},(lesson.author||'POLR Staff'),' · '+(lesson.duration||'45 min'))
@@ -8743,7 +8743,7 @@ function PropertyPartnershipPlatform({ platform, update, toast, session }) {
       React.createElement('div',{style:{background:'linear-gradient(135deg, rgba(200,145,58,0.12) 0%, rgba(200,145,58,0.04) 100%)',border:'1px solid rgba(200,145,58,0.2)',borderRadius:14,padding:'2rem',marginBottom:'1.5rem',textAlign:'center'}},
         React.createElement('div',{style:{fontSize:'2.5rem',marginBottom:'0.75rem'}},'🏡'),
         React.createElement('h3',{style:{fontFamily:'var(--font-serif)',color:'var(--gold)',fontSize:'1.4rem',fontWeight:700,marginBottom:'0.5rem'}},'Adopt A Recovery Home'),
-        React.createElement('p',{style:{color:'var(--dmuted)',fontSize:'0.9rem',lineHeight:1.7,maxWidth:580,margin:'0 auto 1.25rem'}},'A local business, church, or individual sponsors rent, utilities, and furnishings for a Refined Recovery home. The home bears their name. They receive a full impact dashboard showing every life housed, every sobriety milestone, every family restored.'),
+        React.createElement('p',{style:{color:'var(--dmuted)',fontSize:'0.9rem',lineHeight:1.7,maxWidth:580,margin:'0 auto 1.25rem'}},'A local business, church, or individual sponsors rent, utilities, and furnishings for a POLR recovery home. The home bears their name. They receive a full impact dashboard showing every life housed, every sobriety milestone, every family restored.'),
         React.createElement('div',{style:{display:'flex',justifyContent:'center',gap:'1.5rem',flexWrap:'wrap'}},
           [['🏠','Sponsor the Rent'],['💡','Cover Utilities'],['🛋️','Furnish the Home'],['📊','Track the Impact']].map(function(item){
             return React.createElement('div',{key:item[0],style:{textAlign:'center',padding:'0.75rem 1rem',background:'rgba(0,0,0,0.2)',borderRadius:8,minWidth:110}},
@@ -9179,7 +9179,7 @@ function CommunityWall({ platform, update, session, toast, setActive, level }) {
             onClick:function(){
               var shareTypes={testimony:'testimony',breakthrough:'breakthrough moment',gratitude:'gratitude',job:'job update'};
               var typeLabel=shareTypes[p.postType]||p.postType;
-              var shareText='Sharing my '+typeLabel+': "'+p.body.slice(0,120)+(p.body.length>120?'...':'')+'" — Refined Recovery Network · {POLR_WEBSITE} · Walk well. 🙏';
+              var shareText='Sharing my '+typeLabel+': "'+p.body.slice(0,120)+(p.body.length>120?'...':'')+'" — Refined Recovery Recovery · {POLR_WEBSITE} · Walk well. 🙏';
               var warningMsg='⚠️ Public Share Warning\n\nThis will post to '+arguments[0]+' with your name visible.\n\nYour sobriety journey is yours. Only share what you are comfortable with publicly.\n\nProceed?';
               if(window.confirm(warningMsg.replace('arguments[0]','Facebook'))){
                 if(navigator.share){
@@ -9530,7 +9530,7 @@ function TestimonyReviewQueue({ platform, update, toast, session }) {
               return para.trim() && React.createElement('p',{key:i,style:{marginBottom:'0.75rem'}},para);
             })
           ),
-          React.createElement('div',{style:{borderTop:'2px solid #c8913a',marginTop:'1.5rem',paddingTop:'0.75rem',textAlign:'center',fontStyle:'italic',fontSize:'0.82rem',color:'#888'}},'"Walk well." — Refined Recovery Network · {POLR_WEBSITE}')
+          React.createElement('div',{style:{borderTop:'2px solid #c8913a',marginTop:'1.5rem',paddingTop:'0.75rem',textAlign:'center',fontStyle:'italic',fontSize:'0.82rem',color:'#888'}},'"Walk well." — Refined Recovery Recovery · {POLR_WEBSITE}')
         )
       ),
 
@@ -10246,7 +10246,7 @@ function PitchBuilder({ platform, toast, session }) {
   // ── Create partnership record + notify admin ──
   var createPartnershipRecord = function(modeId, label) {
     var modeDescriptions = {
-      church:     'Church Partnership — Host a weekly Refined Recovery meeting',
+      church:     'Church Partnership — Host a weekly POLR recovery meeting',
       employer:   'Workforce Employer — Hire POLR pre-screened candidates',
       housing:    'Housing Partner — Mission-aligned property partnership',
       donor:      'Donor / Funder — Impact-backed financial giving',
@@ -10363,7 +10363,7 @@ function PitchBuilder({ platform, toast, session }) {
                   '<div style="display:flex;justify-content:space-between;align-items:center;padding:1.25rem 3.5rem;background:rgba(0,0,0,0.4);">'+
                     '<div style="display:flex;align-items:center;gap:0.75rem;">'+
                       '<div style="width:28px;height:28px;border-radius:50%;background:#c8913a;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;color:#0c1a2e;">P</div>'+
-                      '<div><div style="font-size:0.75rem;font-weight:700;color:white;font-family:Arial,sans-serif;">Refined Recovery Network</div><div style="font-size:0.6rem;color:rgba(255,255,255,0.45);font-family:Arial,sans-serif;">{POLR_WEBSITE} · {POLR_PHONE}</div></div>'+
+                      '<div><div style="font-size:0.75rem;font-weight:700;color:white;font-family:Arial,sans-serif;">Refined Recovery Recovery</div><div style="font-size:0.6rem;color:rgba(255,255,255,0.45);font-family:Arial,sans-serif;">{POLR_WEBSITE} · {POLR_PHONE}</div></div>'+
                     '</div>'+
                     '<div style="text-align:right;background:rgba(200,145,58,0.15);border:1px solid rgba(200,145,58,0.3);padding:0.6rem 1.25rem;border-radius:8px;">'+
                       '<div style="font-size:1.5rem;font-weight:700;color:#c8913a;font-family:Georgia,serif;line-height:1;">'+(sl.stat||'')+'</div>'+
@@ -13910,11 +13910,11 @@ function BizContractGen({ platform, update, toast, setActive }) {
       +'<p class="sub">Effective Date: '+eff+'<\/p>'
       +'<div class="pt">'
         +'<div><div class="ph">CONSULTANT<\/div><div class="pc"><div class="pn">'+(f.licensorName||'[Your Name]')+'<\/div>'+(f.licensorLLC?'<div style="font-size:8.5pt;color:#64748b">'+f.licensorLLC+'<\/div>':'')+'<div class="pr">(&ldquo;Consultant&rdquo;)<\/div><\/div><\/div>'
-        +'<div><div class="ph">CLIENT<\/div><div class="pc"><div class="pn">Refined Recovery Network, Inc.<\/div><div class="pr">(&ldquo;Client&rdquo;)<\/div><\/div><\/div>'
+        +'<div><div class="ph">CLIENT<\/div><div class="pc"><div class="pn">Refined Recovery Recovery, Inc.<\/div><div class="pr">(&ldquo;Client&rdquo;)<\/div><\/div><\/div>'
       +'<\/div>'
       +'<div class="hl">This Consulting Services Agreement is executed concurrently with the Platform License &amp; Participation Agreement between the same parties. The two agreements are complementary and independent. This Agreement governs the consulting relationship only; the Platform License Agreement governs all software licensing, royalty, and IP terms.<\/div>'
       +'<div class="sh">SECTION 1 &mdash; ENGAGEMENT &amp; TITLE<\/div>'
-      +'<p class="bt">Client engages Consultant as an independent contractor to serve as <strong>'+f.licensorTitle+'<\/strong> of Refined Recovery Network, Inc., effective '+eff+'. This engagement does not create an employment relationship, partnership, joint venture, or agency. Consultant is not an employee.<\/p>'
+      +'<p class="bt">Client engages Consultant as an independent contractor to serve as <strong>'+f.licensorTitle+'<\/strong> of Refined Recovery Recovery, Inc., effective '+eff+'. This engagement does not create an employment relationship, partnership, joint venture, or agency. Consultant is not an employee.<\/p>'
       +'<div class="sh">SECTION 2 &mdash; SCOPE OF WORK<\/div>'
       +'<p class="bt">Consultant shall provide the following services:<\/p>'
       +'<p class="si">'+f.licensorScope+'<\/p>'
@@ -13931,33 +13931,33 @@ function BizContractGen({ platform, update, toast, setActive }) {
       +'<p class="si"><span class="sl">Work Product:<\/span> Strategic plans, written materials, and operational documents created specifically for Client under this Agreement become Client property. All technology, code, and platform modifications remain Consultant property.<\/p>'
       +'<p class="si"><span class="sl">No Restriction:<\/span> Consultant retains the right to license the Platform to other organizations and provide consulting to other non-competing organizations, provided such activities do not materially impair Consultant performance under this Agreement.<\/p>'
       +'<div class="sh">SECTION 5 &mdash; AFFILIATION &amp; AUTHORIZED REPRESENTATION<\/div>'
-      +'<div class="hl">Authorized Title: Consultant is authorized to represent themselves as <strong>'+f.licensorTitle+', Refined Recovery Network, Inc.<\/strong> in external communications, partnership development, grant applications, and employer engagements. This authorization is granted under this Agreement and exists independently of and concurrently with the Platform License Agreement. The non-affiliation clause in the Platform License Agreement applies to third-party Licensees and does not restrict Consultant&rsquo;s representation rights under this Agreement.<\/div>'
-      +'<p class="bt">For any commitment made in Client&rsquo;s name that creates a legal or financial obligation, Consultant shall obtain prior written approval from the authorized signatory of Refined Recovery Network, Inc.<\/p>'
+      +'<div class="hl">Authorized Title: Consultant is authorized to represent themselves as <strong>'+f.licensorTitle+', Refined Recovery Recovery, Inc.<\/strong> in external communications, partnership development, grant applications, and employer engagements. This authorization is granted under this Agreement and exists independently of and concurrently with the Platform License Agreement. The non-affiliation clause in the Platform License Agreement applies to third-party Licensees and does not restrict Consultant&rsquo;s representation rights under this Agreement.<\/div>'
+      +'<p class="bt">For any commitment made in Client&rsquo;s name that creates a legal or financial obligation, Consultant shall obtain prior written approval from the authorized signatory of Refined Recovery Recovery, Inc.<\/p>'
       +'<div class="sh">SECTION 6 &mdash; CONFIDENTIALITY<\/div>'
       +'<p class="bt">Each party shall maintain the confidentiality of the other party&rsquo;s proprietary information. Client shall not disclose Platform architecture, pricing, or technology details. Consultant shall not disclose Client operational or financial information without consent. This obligation survives termination for 3 years.<\/p>'
       +'<div class="sh">SECTION 7 &mdash; TERM &amp; TERMINATION<\/div>'
       +'<p class="si"><span class="sl">Term:<\/span> One year from effective date, auto-renewing annually unless either party provides 60 days written notice of non-renewal.<\/p>'
       +'<p class="si"><span class="sl">Termination:<\/span> Either party may terminate with 30 days written notice. Termination of this Agreement does not affect the Platform License Agreement, which continues under its own terms.<\/p>'
-      +'<p class="si"><span class="sl">Effect:<\/span> Upon termination, Consultant&rsquo;s authorized title and representation authority at Refined Recovery Network, Inc. end on the termination date. All platform licensing obligations continue per the Platform License Agreement.<\/p>'
+      +'<p class="si"><span class="sl">Effect:<\/span> Upon termination, Consultant&rsquo;s authorized title and representation authority at Refined Recovery Recovery, Inc. end on the termination date. All platform licensing obligations continue per the Platform License Agreement.<\/p>'
       +'<div class="sh">SECTION 8 &mdash; INDEPENDENT CONTRACTOR<\/div>'
       +'<p class="bt">Consultant is an independent contractor. Client shall not withhold taxes, provide employee benefits, or treat Consultant as an employee. Consultant is responsible for all applicable self-employment taxes. Client shall issue a 1099-NEC if annual compensation exceeds IRS reporting thresholds.<\/p>'
       +'<div class="sh">SECTION 9 &mdash; GOVERNING LAW<\/div>'
       +'<p class="bt">State of '+(f.governingState||'Louisiana')+'. Disputes: 30-day mediation, then binding arbitration. Prevailing party entitled to attorney fees.<\/p>'
       +'<div class="sh">SECTION 10 &mdash; MISCELLANEOUS<\/div>'
       +'<p class="bt">Entire agreement on consulting relationship. Amendments in writing only. Severability applies. Electronic signatures valid. This Agreement and the Platform License Agreement are to be read together as complementary instruments.<\/p>'
-      +(f.polrRevShare?('<div class=\"sh\">SECTION 11 \u2014 POLR REVENUE SHARE (OPTIONAL \u2014 ELECTED AT SIGNING)<\/div>'+'<p class=\"bt\"><strong>If this clause is checked at signing:<\/strong> Consultant agrees to pay Refined Recovery Network, Inc. '+(f.polrRevSharePct||10)+'% of all white-label platform licensing revenue collected from third-party licensees (license fees, per-resident fees, and setup fees). Payable monthly within 15 days of month-end. Applies ONLY to white-label licensing revenue. Does NOT apply to grant royalties, placement fees, court per-diem, or POLR HQ operational revenue. Payment by PayPal or wire. Obligation survives termination for revenue earned during the term.<\/p>'):'')
-      +(f.polrRevShare?('<div class=\"sh\">SECTION 11 \u2014 POLR REVENUE SHARE (OPTIONAL \u2014 ELECTED AT SIGNING)<\/div>'+'<p class=\"bt\"><strong>If this clause is checked at signing:<\/strong> Consultant agrees to pay Refined Recovery Network, Inc. '+(f.polrRevSharePct||10)+'% of all white-label platform licensing revenue collected from third-party licensees (license fees, per-resident fees, and setup fees). Payable monthly within 15 days of month-end. Applies ONLY to white-label licensing revenue. Does NOT apply to grant royalties, placement fees, court per-diem, or POLR HQ operational revenue. Payment by PayPal or wire. Obligation survives termination for revenue earned during the term.<\/p>'):'')
+      +(f.polrRevShare?('<div class=\"sh\">SECTION 11 \u2014 POLR REVENUE SHARE (OPTIONAL \u2014 ELECTED AT SIGNING)<\/div>'+'<p class=\"bt\"><strong>If this clause is checked at signing:<\/strong> Consultant agrees to pay Refined Recovery Recovery, Inc. '+(f.polrRevSharePct||10)+'% of all white-label platform licensing revenue collected from third-party licensees (license fees, per-resident fees, and setup fees). Payable monthly within 15 days of month-end. Applies ONLY to white-label licensing revenue. Does NOT apply to grant royalties, placement fees, court per-diem, or POLR HQ operational revenue. Payment by PayPal or wire. Obligation survives termination for revenue earned during the term.<\/p>'):'')
+      +(f.polrRevShare?('<div class=\"sh\">SECTION 11 \u2014 POLR REVENUE SHARE (OPTIONAL \u2014 ELECTED AT SIGNING)<\/div>'+'<p class=\"bt\"><strong>If this clause is checked at signing:<\/strong> Consultant agrees to pay Refined Recovery Recovery, Inc. '+(f.polrRevSharePct||10)+'% of all white-label platform licensing revenue collected from third-party licensees (license fees, per-resident fees, and setup fees). Payable monthly within 15 days of month-end. Applies ONLY to white-label licensing revenue. Does NOT apply to grant royalties, placement fees, court per-diem, or POLR HQ operational revenue. Payment by PayPal or wire. Obligation survives termination for revenue earned during the term.<\/p>'):'')
       +'<hr class="gold" style="margin-top:14px">'
       +'<div class="sh" style="border:none;padding:0;margin-bottom:8px">SIGNATURES<\/div>'
       +'<div class="sg">'
-        +'<div class="sb"><div class="sbh">CONSULTANT<\/div><p style="font-weight:700;color:#0c1a2e;margin-bottom:4px">'+(f.licensorName||'[Your Name]')+'<\/p>'+(f.licensorLLC?'<p style="font-size:8.5pt;color:#64748b;margin-bottom:6px">'+f.licensorLLC+'<\/p>':'')+'<p style="font-size:8pt;color:#64748b;margin-bottom:8px">'+f.licensorTitle+', Refined Recovery Network<\/p><div class="sl2"><\/div><p class="slb">Signature<\/p><div class="sl2" style="margin-top:14px"><\/div><p class="slb">Date<\/p><\/div>'
-        +'<div class="sb"><div class="sbh">CLIENT &mdash; Refined Recovery Network, INC.<\/div><p style="font-weight:700;color:#0c1a2e;margin-bottom:4px">Refined Recovery Network, Inc.<\/p><div class="sl2"><\/div><p class="slb">Authorized Signatory &amp; Title<\/p><div class="sl2" style="margin-top:14px"><\/div><p class="slb">Date<\/p><\/div>'
+        +'<div class="sb"><div class="sbh">CONSULTANT<\/div><p style="font-weight:700;color:#0c1a2e;margin-bottom:4px">'+(f.licensorName||'[Your Name]')+'<\/p>'+(f.licensorLLC?'<p style="font-size:8.5pt;color:#64748b;margin-bottom:6px">'+f.licensorLLC+'<\/p>':'')+'<p style="font-size:8pt;color:#64748b;margin-bottom:8px">'+f.licensorTitle+', Refined Recovery Recovery<\/p><div class="sl2"><\/div><p class="slb">Signature<\/p><div class="sl2" style="margin-top:14px"><\/div><p class="slb">Date<\/p><\/div>'
+        +'<div class="sb"><div class="sbh">CLIENT &mdash; Refined Recovery RECOVERY, INC.<\/div><p style="font-weight:700;color:#0c1a2e;margin-bottom:4px">Refined Recovery Recovery, Inc.<\/p><div class="sl2"><\/div><p class="slb">Authorized Signatory &amp; Title<\/p><div class="sl2" style="margin-top:14px"><\/div><p class="slb">Date<\/p><\/div>'
       +'<\/div>'
       +'<div class="fn">Consulting Services Agreement &mdash; Executed concurrently with Platform License &amp; Participation Agreement &mdash; '+eff+' &mdash; Review with a Louisiana-licensed attorney before execution.<\/div>'
       +'<\/body><\/html>';
     var w=window.open('','_blank','width=960,height=780');
     if(w){w.document.write(html);w.document.close();w.focus();setTimeout(function(){w.print();},900);}
-    try{navigator.clipboard.writeText('CONSULTING SERVICES AGREEMENT\n\nConsultant: '+(f.licensorName||'')+(f.licensorLLC?' ('+f.licensorLLC+')':'')+'\nTitle: '+f.licensorTitle+'\nClient: Refined Recovery Network, Inc.\nEffective: '+eff+'\nConsulting Fee: '+fee+'\nScope: '+f.licensorScope);}catch(e){}
+    try{navigator.clipboard.writeText('CONSULTING SERVICES AGREEMENT\n\nConsultant: '+(f.licensorName||'')+(f.licensorLLC?' ('+f.licensorLLC+')':'')+'\nTitle: '+f.licensorTitle+'\nClient: Refined Recovery Recovery, Inc.\nEffective: '+eff+'\nConsulting Fee: '+fee+'\nScope: '+f.licensorScope);}catch(e){}
     toast({icon:'\uD83E\uDD1D',title:'Consulting Agreement ready',body:'Print to PDF. Execute alongside the Platform License Agreement on the same date.'});
   };
 
@@ -14080,8 +14080,8 @@ function BizContractGen({ platform, update, toast, setActive }) {
     add(line);
     add('SECTION 11 — WHITE-LABEL & CONTENT PROTECTIONS');
     add(line);
-    add('11.1 POLR Content Exclusion: All white-label deployments exclude and must not include: (a) POLR 12-step adapted curriculum; (b) founding testimony and biographical content of POLR principals; (c) Walk Well blog content and branding; (d) {POLR_WEBSITE} branding and contact information. Such content remains the exclusive property of Refined Recovery Network, Inc. and is not licensed under this Agreement.');
-    add('11.2 No Affiliation Representation: Licensee shall not represent, imply, or suggest that its services, programs, or platform are endorsed by, affiliated with, derived from, or operated in connection with Refined Recovery Network, Inc. or its principals.'+( form.polrCarveOut?' This restriction applies to third-party Licensees only and does not apply to the Licensor\'s own operational engagement with Refined Recovery Network, Inc., which is governed by a separate Consulting Services Agreement executed concurrently with this Agreement.':'')+"'");
+    add('11.1 POLR Content Exclusion: All white-label deployments exclude and must not include: (a) POLR 12-step adapted curriculum; (b) founding testimony and biographical content of POLR principals; (c) Walk Well blog content and branding; (d) {POLR_WEBSITE} branding and contact information. Such content remains the exclusive property of Refined Recovery Recovery, Inc. and is not licensed under this Agreement.');
+    add('11.2 No Affiliation Representation: Licensee shall not represent, imply, or suggest that its services, programs, or platform are endorsed by, affiliated with, derived from, or operated in connection with Refined Recovery Recovery, Inc. or its principals.'+( form.polrCarveOut?' This restriction applies to third-party Licensees only and does not apply to the Licensor\'s own operational engagement with Refined Recovery Recovery, Inc., which is governed by a separate Consulting Services Agreement executed concurrently with this Agreement.':'')+"'");
     add('11.3 Proprietary Notices: Licensee may brand the Platform under its own name but shall not remove, alter, obscure, or modify any proprietary notices embedded in the Platform code or operational interface.');
     add('11.4 Licensor Attribution: Licensor reserves the right to identify Licensee as a licensed platform user in Licensor\'s promotional materials unless Licensee provides written objection within 30 days of this Agreement.');
     add('');
@@ -14234,7 +14234,7 @@ function BizContractGen({ platform, update, toast, setActive }) {
       '<div class="bt"><span class="sl">Underpayment Penalty:<\/span> Deficiency >5% triggers 2%\/month interest plus audit costs.<\/div>',
       f.liquidatedDamages?'<div class="sh">SECTION 9 &mdash; LIQUIDATED DAMAGES<\/div><table><tr><th>Breach<\/th><th>Damages<\/th><\/tr><tr><td>Reverse engineering or IP theft<\/td><td>$'+f.ldAmount.toLocaleString()+' per incident + injunctive relief<\/td><\/tr><tr><td>Intentional misreporting<\/td><td>3x underpaid royalties, min $'+Math.round(f.ldAmount/2).toLocaleString()+'<\/td><\/tr><tr><td>Non-compete violation<\/td><td>$'+f.ldAmount.toLocaleString()+'\/month of violation<\/td><\/tr><tr><td>Non-circumvention violation<\/td><td>Full remaining-term royalties, min $'+(f.ldAmount*2).toLocaleString()+'<\/td><\/tr><\/table>':'',
       '<div class="sh">SECTION 10 &mdash; WHITE-LABEL PROTECTIONS<\/div>',
-      '<div class="bt">Excluded from all deployments: POLR 12-step curriculum, founding testimony, Walk Well content, and {POLR_WEBSITE} branding. These remain exclusive property of Refined Recovery Network, Inc. Licensee may not represent affiliation with POLR or its principals.<\/div>',
+      '<div class="bt">Excluded from all deployments: POLR 12-step curriculum, founding testimony, Walk Well content, and {POLR_WEBSITE} branding. These remain exclusive property of Refined Recovery Recovery, Inc. Licensee may not represent affiliation with POLR or its principals.<\/div>',
       '<div class="sh">SECTION 11 &mdash; TERM &amp; TERMINATION<\/div>',
       '<div class="bt">Term: '+f.termYears+' year'+(f.termYears>1?'s':'')+', auto-renewing 1-year periods with 90 days notice to exit. Termination for non-payment: 10 days notice. All unpaid amounts due immediately on termination. Setup fees non-refundable. Non-compete and IP protections survive indefinitely.<\/div>',
       '<div class="sh">SECTIONS 12\u201314 &mdash; CONFIDENTIALITY, GOVERNING LAW, MISCELLANEOUS<\/div>',
@@ -14562,7 +14562,7 @@ function BizQRStudio({ platform, update, toast, session, setActive }) {
 
   // ── House poster ──
   var openHousePoster = function(cfg) {
-    var org = cfg&&cfg.isWL&&selClient?selClient:'Refined Recovery Network';
+    var org = cfg&&cfg.isWL&&selClient?selClient:'Refined Recovery Recovery';
     var url = cfg&&cfg.isWL&&selClient?qrURL:'https://{POLR_WEBSITE}/platform';
     var ph  = cfg&&cfg.isWL&&selClient?'Contact us for info':'{POLR_PHONE}';
     var sub = cfg&&cfg.isWL&&selClient?'Recovery Support Ministry':'Healing and hope for the hurting';
@@ -14663,7 +14663,7 @@ function BizQRStudio({ platform, update, toast, session, setActive }) {
       '.free-badge{background:#c8913a;color:#0c1a2e;font-size:8pt;font-weight:900;padding:3px 10px;border-radius:20px;letter-spacing:0.12em;text-transform:uppercase;}',
       '<\/style><\/head><body>',
       '<div class="top">',
-        '<div><div class="brand">Refined Recovery Network<\/div><div class="brand-tag">POLR \u00b7 South Louisiana<\/div><\/div>',
+        '<div><div class="brand">Refined Recovery Recovery<\/div><div class="brand-tag">POLR \u00b7 South Louisiana<\/div><\/div>',
         '<div class="free-badge">Free &amp; Open to All<\/div>',
       '<\/div>',
       '<div class="gold-rule"><\/div>',
@@ -14693,7 +14693,7 @@ function BizQRStudio({ platform, update, toast, session, setActive }) {
         '<div class="verse">&ldquo;Come unto me, all ye that labour and are heavy laden, and I will give you rest.&rdquo;<br>&mdash; Matthew 11:28 KJV<\/div>',
       '<\/div>',
       '<div class="bottom">',
-        '<div class="bot-brand">Refined Recovery Network<\/div>',
+        '<div class="bot-brand">Refined Recovery Recovery<\/div>',
         '<div class="bot-contact">{POLR_WEBSITE}<br>{POLR_PHONE} \u00b7 {POLR_EMAIL}<\/div>',
       '<\/div>',
       '<script>window.onload=function(){',
@@ -14753,7 +14753,7 @@ function BizQRStudio({ platform, update, toast, session, setActive }) {
       '<\/div>',
       '<div class="body">',
         '<div class="sec-head" style="margin-top:0.25in">About This Event<\/div>',
-        '<div class="body-text">'+(evt.description||'A special gathering of the Refined Recovery community. Come experience the warmth, accountability, and encouragement that has changed hundreds of lives across South Louisiana since 1995.')+'<\/div>',
+        '<div class="body-text">'+(evt.description||'A special gathering of the POLR recovery community. Come experience the warmth, accountability, and encouragement that has changed hundreds of lives across South Louisiana since 1995.')+'<\/div>',
         '<div class="qr-strip">',
           '<div class="qr-strip-text"><div class="qr-strip-label">RSVP & Learn More<\/div><div class="qr-strip-sub">Scan to register, get directions, and access the full POLR platform for free.<\/div><\/div>',
           '<div style="padding:8px;background:white;border-radius:8px;"><div id="qr"><\/div><\/div>',
@@ -14761,7 +14761,7 @@ function BizQRStudio({ platform, update, toast, session, setActive }) {
         '<div class="verse">&ldquo;Not forsaking the assembling of ourselves together.&rdquo; \u2014 Hebrews 10:25 KJV<\/div>',
       '<\/div>',
       '<div class="bottom">',
-        '<div class="bot-org">Refined Recovery Network<\/div>',
+        '<div class="bot-org">Refined Recovery Recovery<\/div>',
         '<div class="bot-contact">{POLR_WEBSITE} \u00b7 {POLR_PHONE}<br>Free \u00b7 Open to Everyone<\/div>',
       '<\/div>',
       '<script>window.onload=function(){',
@@ -14817,7 +14817,7 @@ function BizQRStudio({ platform, update, toast, session, setActive }) {
       '.bot-text{font-size:11pt;font-weight:700;color:#0c1a2e;}',
       '<\/style><\/head><body>',
       '<div class="stripe"><\/div>',
-      '<div class="top-bar"><div class="top-text">Refined Recovery Network \u00b7 Opening Soon<\/div><\/div>',
+      '<div class="top-bar"><div class="top-text">Refined Recovery Recovery \u00b7 Opening Soon<\/div><\/div>',
       '<div class="main">',
         '<div>',
           '<div class="badge"><div class="badge-text">\u2728 New POLR Place<\/div><\/div>',
@@ -14875,14 +14875,14 @@ function BizQRStudio({ platform, update, toast, session, setActive }) {
       text = '\uD83C\uDF89 POLR EVENT: '+item.title+'\n\n'+
         '\uD83D\uDDD3 '+(item.date||'Coming soon')+' at '+(item.time||'TBD')+'\n'+
         '\uD83D\uDCCD '+(item.location||'POLR Campus')+'\n\n'+
-        (item.description||'Join the Refined Recovery community for this special event. Free and open to everyone.')+'\n\n'+
+        (item.description||'Join the POLR recovery community for this special event. Free and open to everyone.')+'\n\n'+
         '\uD83D\uDD17 Register free at {POLR_WEBSITE}\n'+
         '\uD83D\uDCDE {POLR_PHONE}\n\n'+
         '#POLRNetwork #RecoveryCommunity #SouthLouisiana #FreeEvent #HopeAndHealing';
       shareURL = 'https://{POLR_WEBSITE}';
     } else if(type==='opening'){
       text = '\uD83C\uDFE0 COMING SOON: '+houseForm.houseName+' in '+houseForm.city+', '+houseForm.state+'!\n\n'+
-        'Refined Recovery Network is expanding. A new POLR Place is opening its doors in '+houseForm.city+
+        'Refined Recovery Recovery is expanding. A new POLR Place is opening its doors in '+houseForm.city+
         (houseForm.openDate?' on '+houseForm.openDate:' soon')+'.\n\n'+
         '\uD83D\uDECF\uFE0F '+houseForm.beds+' beds for structured recovery housing\n'+
         '\uD83D\uDCDA Free GED prep and trade certification\n'+
@@ -14892,7 +14892,7 @@ function BizQRStudio({ platform, update, toast, session, setActive }) {
         '\uD83D\uDCDE '+houseForm.phone+' \u00b7 {POLR_WEBSITE}\n\n'+
         '#POLRNetwork #NewPOLRPlace #'+houseForm.city.replace(/\s+/g,'')+' #RecoveryHousing #SoberLiving #Louisiana';
     } else {
-      text = '\uD83D\uDD4A\uFE0F Refined Recovery Network is here.\n\n'+
+      text = '\uD83D\uDD4A\uFE0F Refined Recovery Recovery is here.\n\n'+
         'Free programs. Open to everyone. No commitment required.\n\n'+
         '\u2714 12-Step Christ-Centered Recovery\n'+
         '\u2714 GED Prep & Trade Certifications\n'+
@@ -15248,7 +15248,7 @@ function BizQRStudio({ platform, update, toast, session, setActive }) {
                           '.bot-text{font-size:10pt;font-weight:700;color:#0c1a2e;letter-spacing:0.05em;}',
                           '<\/style><\/head><body>',
                           '<div class="top">',
-                            '<div class="brand">Refined Recovery Network<\/div>',
+                            '<div class="brand">Refined Recovery Recovery<\/div>',
                             '<div class="campus-tag">'+camp.name+'<br>'+camp.city+'<\/div>',
                           '<\/div>',
                           '<div class="accent"><\/div>',
@@ -15283,7 +15283,7 @@ function BizQRStudio({ platform, update, toast, session, setActive }) {
                             '<\/div>',
                             '<div class="verse">&ldquo;Come unto me, all ye that labour and are heavy laden, and I will give you rest.&rdquo; — Matthew 11:28 KJV<\/div>',
                           '<\/div>',
-                          '<div class="bottom"><div class="bot-text">{POLR_WEBSITE} · Free · Confidential · No Commitment · Refined Recovery Network Est. 1995<\/div><\/div>',
+                          '<div class="bottom"><div class="bot-text">{POLR_WEBSITE} · Free · Confidential · No Commitment · Refined Recovery Recovery Est. 1995<\/div><\/div>',
                           '<script>window.onload=function(){',
                             'new QRCode(document.getElementById("qr"),{text:"'+url+'",',
                             'width:160,height:160,colorDark:"#0c1a2e",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.H});',
@@ -15297,7 +15297,7 @@ function BizQRStudio({ platform, update, toast, session, setActive }) {
                     },'🖨️ Print Poster (8.5×11)'),
                     React.createElement('button',{
                       onClick:(function(camp){return function(){
-                        var text = '🔒 Something private for you.\n\nNo login. No account. No phone number. Just a quiet space to be honest with yourself.\n\nRefined Recovery Network built a free private reflection tool for anyone who needs it. Whether you are ready to ask for help or just trying to figure out where you stand.\n\n✔ Takes 5 minutes\n✔ Completely private — nothing leaves your phone\n✔ No commitment. No judgment. No cost.\n\nIf you want to talk after, we are here.\n📞 '+camp.phone+'\n📍 '+camp.name+'\n\n#Privacy #Recovery #YouAreNotAlone #SouthLouisiana #POLRNetwork #FreeHelp';
+                        var text = '🔒 Something private for you.\n\nNo login. No account. No phone number. Just a quiet space to be honest with yourself.\n\nRefined Recovery Recovery built a free private reflection tool for anyone who needs it. Whether you are ready to ask for help or just trying to figure out where you stand.\n\n✔ Takes 5 minutes\n✔ Completely private — nothing leaves your phone\n✔ No commitment. No judgment. No cost.\n\nIf you want to talk after, we are here.\n📞 '+camp.phone+'\n📍 '+camp.name+'\n\n#Privacy #Recovery #YouAreNotAlone #SouthLouisiana #POLRNetwork #FreeHelp';
                         var shareURL = 'https://{POLR_WEBSITE}/platform?campus='+camp.id+'#journal';
                         var fbURL = 'https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(shareURL)+'&quote='+encodeURIComponent(text.substring(0,500));
                         window.open(fbURL,'_blank','width=600,height=500');
@@ -15340,7 +15340,7 @@ function BizTerminologyMapper({ platform, update, toast, setActive }) {
     reflectionName:'POLR Reflection', pointsName:'POLR Points',
     signaturePhrase:'Walk well.', adminTitle:'POLR Director',
     staffTitle:'Ambassador', programName:'12-Step Recovery',
-    siteDomain:'{POLR_WEBSITE}', orgName:'Refined Recovery Network'
+    siteDomain:'{POLR_WEBSITE}', orgName:'Refined Recovery Recovery'
   };
 
   var _sl = React.useState(null), selClient=_sl[0], setSelClient=_sl[1];
@@ -15348,11 +15348,11 @@ function BizTerminologyMapper({ platform, update, toast, setActive }) {
   var setF = function(k){ return function(e){ setForm(function(p){ return Object.assign({},p,{[k]:e.target.value}); }); }; };
 
   var TERM_FIELDS = [
-    {key:'orgName',         label:'Organization Name',     placeholder:'Refined Recovery Network',    desc:'Full legal name — appears in footer, certificates, and contracts'},
+    {key:'orgName',         label:'Organization Name',     placeholder:'Refined Recovery Recovery',    desc:'Full legal name — appears in footer, certificates, and contracts'},
     {key:'networkName',     label:'Network / Platform Name',placeholder:'Refined Recovery Network',             desc:'Used in dashboard header, nav brand, and all "network" references'},
     {key:'campusName',      label:'Campus Name (singular)', placeholder:'POLR Place',               desc:'e.g. "Refined House" — replaces "POLR Place" everywhere'},
     {key:'houseName',       label:'Recovery House Name',    placeholder:'POLR House',               desc:'e.g. "Recovery Home" — used in housing panel and resident records'},
-    {key:'reflectionName',  label:'Reflection Tool Name',   placeholder:'POLR Reflection',          desc:'e.g. "Refined Reflection" — used in QR codes and poster copy'},
+    {key:'reflectionName',  label:'Reflection Tool Name',   placeholder:'POLR Reflection',          desc:'e.g. "Hope Reflection" — used in QR codes and poster copy'},
     {key:'pointsName',      label:'Points / Rewards Name',  placeholder:'POLR Points',              desc:'e.g. "Hope Credits" — used in milestone and reward systems'},
     {key:'signaturePhrase', label:'Signature Phrase',        placeholder:'Walk well.',               desc:'e.g. "Walk in Hope." — email sign-offs, certificate footers, toasts'},
     {key:'adminTitle',      label:'Admin / Director Title',  placeholder:'POLR Director',            desc:'e.g. "Executive Director" — replaces "POLR Director" in notifications'},
@@ -15362,8 +15362,8 @@ function BizTerminologyMapper({ platform, update, toast, setActive }) {
   ];
 
   var PRESET_CLIENTS = [
-    {name:'POLR (Default)',     terms:{networkName:'Refined Recovery Network',campusName:'POLR Place',houseName:'POLR House',reflectionName:'POLR Reflection',pointsName:'POLR Points',signaturePhrase:'Walk well.',adminTitle:'POLR Director',staffTitle:'Ambassador',programName:'12-Step Recovery',siteDomain:'{POLR_WEBSITE}',orgName:'Refined Recovery Network'}},
-    {name:'Refined Recovery',      terms:{networkName:'Hope Network',campusName:'Refined House',houseName:'Hope Home',reflectionName:'Refined Reflection',pointsName:'Refined Points',signaturePhrase:'Walk in Hope.',adminTitle:'Executive Director',staffTitle:'Recovery Coach',programName:'Hope Steps',siteDomain:'hoperecovery.org',orgName:'Refined Recovery Ministries'}},
+    {name:'POLR (Default)',     terms:{networkName:'Refined Recovery Network',campusName:'POLR Place',houseName:'POLR House',reflectionName:'POLR Reflection',pointsName:'POLR Points',signaturePhrase:'Walk well.',adminTitle:'POLR Director',staffTitle:'Ambassador',programName:'12-Step Recovery',siteDomain:'{POLR_WEBSITE}',orgName:'Refined Recovery Recovery'}},
+    {name:'Refined Recovery',      terms:{networkName:'Hope Network',campusName:'Refined House',houseName:'Hope Home',reflectionName:'Hope Reflection',pointsName:'Hope Points',signaturePhrase:'Walk in Hope.',adminTitle:'Executive Director',staffTitle:'Recovery Coach',programName:'Hope Steps',siteDomain:'hoperecovery.org',orgName:'Refined Recovery Ministries'}},
     {name:'New Life Ministry',  terms:{networkName:'New Life Network',campusName:'New Life Place',houseName:'New Life House',reflectionName:'New Life Journal',pointsName:'New Life Credits',signaturePhrase:'Live new.',adminTitle:'Ministry Director',staffTitle:'Life Coach',programName:'New Life Steps',siteDomain:'newlifeministry.org',orgName:'New Life Recovery Ministry'}},
     {name:'Redeemer House',     terms:{networkName:'Redeemer Network',campusName:'Redeemer House',houseName:'Redeemer Home',reflectionName:'Redeemer Reflection',pointsName:'Redeemer Points',signaturePhrase:'Redeemed and walking.',adminTitle:'House Director',staffTitle:'Peer Mentor',programName:'Redemption Steps',siteDomain:'redeemerhouse.org',orgName:'Redeemer House Ministries'}},
   ];
@@ -16083,7 +16083,7 @@ function BizConsultingRevShare({ platform, update, toast, setActive }) {
   var _t=React.useState('dashboard'), tab=_t[0], setTab=_t[1];
   var _sm=React.useState({
     enabled:true, pct:10, label:'POLR Revenue Share',
-    payeeName:'Refined Recovery Network, Inc.',
+    payeeName:'Refined Recovery Recovery, Inc.',
     payeeEmail:'{POLR_EMAIL}',
     payeePayPal:'', notes:'10% of all white-label platform licensing revenue'
   }), cfg=_sm[0], setCfg=_sm[1];
@@ -16153,7 +16153,7 @@ function BizConsultingRevShare({ platform, update, toast, setActive }) {
     React.createElement('div',{className:'lvl-header',style:{'--acc':'var(--l4)'}},
       React.createElement('div',{className:'lvh-tag'},'Platform Business'),
       React.createElement('div',{className:'lvh-title'},'POLR Revenue Share'),
-      React.createElement('div',{className:'lvh-sub'},'Track and pay the optional '+(savedCfg.pct||10)+'% of white-label licensing revenue owed to Refined Recovery Network, Inc. per the Consulting Services Agreement.')
+      React.createElement('div',{className:'lvh-sub'},'Track and pay the optional '+(savedCfg.pct||10)+'% of white-label licensing revenue owed to Refined Recovery Recovery, Inc. per the Consulting Services Agreement.')
     ),
 
     // Status banner
@@ -16309,7 +16309,7 @@ function BizConsultingRevShare({ platform, update, toast, setActive }) {
           ),
           React.createElement('div',null,
             React.createElement('div',{style:{fontSize:'0.68rem',color:'var(--dmuted)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:'0.3rem'}},'Payee Name'),
-            React.createElement('input',{value:cfg.payeeName,onChange:setC('payeeName'),placeholder:'Refined Recovery Network, Inc.',
+            React.createElement('input',{value:cfg.payeeName,onChange:setC('payeeName'),placeholder:'Refined Recovery Recovery, Inc.',
               style:{width:'100%',padding:'0.65rem',borderRadius:8,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dtxt)',fontSize:'0.88rem',outline:'none',boxSizing:'border-box'}})
           ),
           React.createElement('div',null,
@@ -17949,7 +17949,7 @@ function WorkforcePlacementDashboard({ platform, update, session, toast, setActi
       '<hr class="gold"><p class="sub">Effective: '+today+'<\/p>',
       '<div class="pt">',
         '<div><div class="ph">EMPLOYER<\/div><div class="pc"><div class="pn">'+(emp.name||'[Employer Name]')+'<\/div><div class="pr">(&ldquo;Employer&rdquo;)<\/div><\/div><\/div>',
-        '<div><div class="ph">SERVICE PROVIDER<\/div><div class="pc"><div class="pn">Refined Recovery Network, Inc.<\/div><div class="pr">(&ldquo;POLR&rdquo;)<\/div><\/div><\/div>',
+        '<div><div class="ph">SERVICE PROVIDER<\/div><div class="pc"><div class="pn">Refined Recovery Recovery, Inc.<\/div><div class="pr">(&ldquo;POLR&rdquo;)<\/div><\/div><\/div>',
       '<\/div>',
       '<div class="sh">SECTION 1 &mdash; SERVICES<\/div>',
       '<p class="bt">POLR agrees to provide workforce placement services to Employer under the <strong>'+tierObj.label+'<\/strong> tier, including: candidate sourcing and pre-screening, drug testing verification, job readiness assessment, placement coordination, and WOTC tax credit documentation as described below.<\/p>',
@@ -17984,9 +17984,9 @@ function WorkforcePlacementDashboard({ platform, update, session, toast, setActi
       '<hr class="gold" style="margin-top:14px">',
       '<div class="sg">',
         '<div class="sb"><div class="sbh">EMPLOYER<\/div><p style="font-weight:700;color:#0c1a2e;margin-bottom:3px">'+(emp.name||'[Employer Name]')+'<\/p><p style="font-size:8pt;color:#64748b;margin-bottom:8px">'+(emp.contact||'')+(emp.email?' &middot; '+emp.email:'')+'<\/p><div class="sl2"><\/div><p class="slb">Authorized Signature &amp; Title<\/p><div class="sl2" style="margin-top:14px"><\/div><p class="slb">Date<\/p><\/div>',
-        '<div class="sb"><div class="sbh">Refined Recovery Network, INC.<\/div><p style="font-weight:700;color:#0c1a2e;margin-bottom:3px">Refined Recovery Network, Inc.<\/p><p style="font-size:8pt;color:#64748b;margin-bottom:8px">Director &middot; {POLR_EMAIL} &middot; {POLR_PHONE}<\/p><div class="sl2"><\/div><p class="slb">Authorized Signature &amp; Title<\/p><div class="sl2" style="margin-top:14px"><\/div><p class="slb">Date<\/p><\/div>',
+        '<div class="sb"><div class="sbh">Refined Recovery RECOVERY, INC.<\/div><p style="font-weight:700;color:#0c1a2e;margin-bottom:3px">Refined Recovery Recovery, Inc.<\/p><p style="font-size:8pt;color:#64748b;margin-bottom:8px">Director &middot; {POLR_EMAIL} &middot; {POLR_PHONE}<\/p><div class="sl2"><\/div><p class="slb">Authorized Signature &amp; Title<\/p><div class="sl2" style="margin-top:14px"><\/div><p class="slb">Date<\/p><\/div>',
       '<\/div>',
-      '<div class="fn">Employer Partnership Agreement &mdash; '+tierObj.label+' &mdash; Refined Recovery Network, Inc. &mdash; {POLR_WEBSITE} &mdash; Review with counsel before execution. This agreement does not constitute legal advice.<\/div>',
+      '<div class="fn">Employer Partnership Agreement &mdash; '+tierObj.label+' &mdash; Refined Recovery Recovery, Inc. &mdash; {POLR_WEBSITE} &mdash; Review with counsel before execution. This agreement does not constitute legal advice.<\/div>',
       '<\/body><\/html>',
     ].join('');
     var w=window.open('','_blank','width=960,height=780');
@@ -18757,7 +18757,7 @@ function ModuleControlCenter({ platform, update, session, toast }) {
                 '<div class="metrics"><h3>Key Metrics & Outcomes<\/h3><ul>'+
                 page.metrics.map(function(m){return '<li>'+m+'<\/li>';}).join('')+
                 '<\/ul><\/div>'+
-                '<div class="footer">Refined Recovery Network, Inc. &middot; {POLR_WEBSITE} &middot; {POLR_EMAIL} &middot; {POLR_PHONE}<br>'+
+                '<div class="footer">Refined Recovery Recovery, Inc. &middot; {POLR_WEBSITE} &middot; {POLR_EMAIL} &middot; {POLR_PHONE}<br>'+
                 'This document is prepared for employer and partner information. Walk well.<\/div>'+
                 '<\/body><\/html>';
               var w=window.open('','_blank','width=960,height=780');
@@ -19353,7 +19353,7 @@ function ZeffyDonationForm({ platform, update, toast }) {
 var DEFAULT_SITE_CONFIG = {
   slug: 'polr-hq',
   type: 'polr',          // 'polr' | 'campus' | 'whitelabel'
-  name: 'Refined Recovery Network',
+  name: 'Refined Recovery Recovery',
   networkName: 'Refined Recovery Network',
   tagline: 'Healing and hope for the hurting.',
   heroHeadline: 'A New Walk Begins Here',
@@ -20304,7 +20304,7 @@ function GuestSignupPanel({ platform, update, toast, setPage }) {
 
   return React.createElement('div',{style:{maxWidth:520,margin:'0 auto',padding:'1rem'}},
     React.createElement('div',{style:{textAlign:'center',marginBottom:'1.5rem'}},
-      React.createElement('div',{style:{fontSize:'0.65rem',color:'var(--dmuted)',fontFamily:'var(--font-mono)',marginBottom:'0.3rem'}},'JOIN Refined Recovery Network'),
+      React.createElement('div',{style:{fontSize:'0.65rem',color:'var(--dmuted)',fontFamily:'var(--font-mono)',marginBottom:'0.3rem'}},'JOIN Refined Recovery RECOVERY'),
       React.createElement('h2',{style:{fontFamily:'var(--font-serif)',color:'var(--dtxt)',fontWeight:600,marginBottom:'0.35rem'}},'Create Your Free Account'),
       React.createElement('div',{style:{fontSize:'0.85rem',color:'var(--dmuted)'}},'No commitment required. No membership fees. Ever.')
     ),
@@ -20381,7 +20381,7 @@ function GuestGuidePanel({ platform, toast, session, setActive, setPage }) {
 
   var provision = null;
   try { provision = JSON.parse(localStorage.getItem('polr_provision') || 'null'); } catch(e) {}
-  var orgName = (provision && provision.orgName) ? provision.orgName : 'Refined Recovery Network';
+  var orgName = (provision && provision.orgName) ? provision.orgName : 'Refined Recovery Recovery';
   var cfg = window.POLR_CONTACT ? window.POLR_CONTACT.get(platform) : { phone:'{POLR_PHONE}', email:'{POLR_EMAIL}', website:'{POLR_WEBSITE}' };
 
   var STEPS = [
@@ -20563,7 +20563,7 @@ function GuestDonatePanel({ platform, toast, update, session, setActive }) {
 
   var provision = null;
   try { provision = JSON.parse(localStorage.getItem('polr_provision') || 'null'); } catch(e) {}
-  var orgName = (provision && provision.orgName) ? provision.orgName : 'Refined Recovery Network';
+  var orgName = (provision && provision.orgName) ? provision.orgName : 'Refined Recovery Recovery';
   var cfg = window.POLR_CONTACT ? window.POLR_CONTACT.get(platform) : {
     phone:'{POLR_PHONE}', email:'{POLR_EMAIL}', website:'{POLR_WEBSITE}'
   };
@@ -22190,7 +22190,7 @@ function Dashboard({
       level===6?'Welcome to POLR':level===5?'Welcome Back':level===3?'House Mother HQ':level===4?'Workforce Coordinator':level===2?'Group Chair':'Ministry Command'
     ),
     React.createElement('div',{style:{fontSize:'0.87rem',color:'var(--dmuted)',lineHeight:1.7,marginBottom:'1.5rem'}},
-      level===6?'Refined Recovery Network is a free, Christ-centered recovery community. All meetings are open. No commitment required. Your first step is to show up.'
+      level===6?'Refined Recovery Recovery is a free, Christ-centered recovery community. All meetings are open. No commitment required. Your first step is to show up.'
       :level===5?'Your recovery journey continues here. Check your progress, lessons, and upcoming meetings.'
       :cfg.msg
     ),
@@ -23075,7 +23075,7 @@ function MeetingsBuilder({ platform, addToList, removeFromList, updateInList, to
     var diff = (dayNum - nextDate.getDay() + 7) % 7 || 7;
     nextDate.setDate(nextDate.getDate() + diff);
     var dateStr = nextDate.toISOString().replace(/[-:]/g,'').slice(0,15);
-    var ics = 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//POLR//EN\nBEGIN:VEVENT\nSUMMARY:'+m.name+'\nDTSTART:'+dateStr+'00Z\nDTEND:'+dateStr+'00Z\nLOCATION:'+(m.location||'')+'\nDESCRIPTION:Refined Recovery Network Meeting\nRRULE:FREQ=WEEKLY\nEND:VEVENT\nEND:VCALENDAR';
+    var ics = 'BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//POLR//EN\nBEGIN:VEVENT\nSUMMARY:'+m.name+'\nDTSTART:'+dateStr+'00Z\nDTEND:'+dateStr+'00Z\nLOCATION:'+(m.location||'')+'\nDESCRIPTION:Refined Recovery Recovery Meeting\nRRULE:FREQ=WEEKLY\nEND:VEVENT\nEND:VCALENDAR';
     var blob = new Blob([ics], {type:'text/calendar'});
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a'); a.href=url; a.download=m.name.replace(/\s/g,'_')+'.ics'; a.click();
@@ -24168,7 +24168,7 @@ function DonationsPanel({ platform, update, toast, setActive, session }) {
         // Header
         React.createElement('div',{style:{textAlign:'center',marginBottom:'1.5rem',borderBottom:'1px solid var(--bdr)',paddingBottom:'1.25rem'}},
           React.createElement('div',{style:{fontSize:'1.5rem',marginBottom:'0.25rem'}},'🙏'),
-          React.createElement('div',{style:{fontFamily:'var(--font-serif)',fontSize:'1.3rem',fontWeight:700,color:'var(--gold)'}},'Refined Recovery Network'),
+          React.createElement('div',{style:{fontFamily:'var(--font-serif)',fontSize:'1.3rem',fontWeight:700,color:'var(--gold)'}},'Refined Recovery Recovery'),
           React.createElement('div',{style:{fontSize:'0.75rem',color:'var(--dmuted)'}},'Charitable Contribution Receipt'),
           React.createElement('div',{style:{fontSize:'0.7rem',color:'var(--dmuted)',marginTop:'0.2rem'}},
             '{POLR_WEBSITE}  ·  {POLR_PHONE}  ·  {POLR_EMAIL}')
@@ -24218,7 +24218,7 @@ function DonationsPanel({ platform, update, toast, setActive, session }) {
           borderRadius:8,padding:'0.85rem 1rem',marginBottom:'1.5rem',fontSize:'0.78rem',color:'var(--dtxt)',lineHeight:1.65
         }},
           React.createElement('span',{style:{fontWeight:700,color:'var(--l5)'}},'✅ Tax-Deductible: '),
-          'Refined Recovery Network, Inc. is a registered 501(c)(3) tax-exempt nonprofit organization. ',
+          'Refined Recovery Recovery, Inc. is a registered 501(c)(3) tax-exempt nonprofit organization. ',
           'EIN / Tax-Exempt Number: ',
           React.createElement('strong',null,d.taxExemptNum || campusTaxNum),
           '. This receipt serves as documentation for your tax records. Please retain for your records.',
@@ -24235,7 +24235,7 @@ function DonationsPanel({ platform, update, toast, setActive, session }) {
                 +'\nEmail: '+(d.email||'—')+'\nPhone: '+(d.phone||'—')+'\nAmount: '+(isIK?d.itemDesc+' est. $'+d.itemValue:'$'+d.amount.toLocaleString())
                 +'\nCampaign: '+d.campaign+'\nCampus: '+d.campus
                 +'\nEIN: '+(d.taxExemptNum||campusTaxNum)
-                +'\n\nRefined Recovery Network, Inc. is a 501(c)(3). No goods or services provided in exchange.';
+                +'\n\nRefined Recovery Recovery, Inc. is a 501(c)(3). No goods or services provided in exchange.';
               navigator.clipboard.writeText(text).then(function(){toast({icon:'📋',title:'Receipt copied to clipboard',body:'Paste into email to donor.'});});},
             style:{padding:'0.65rem 1.25rem',borderRadius:9,background:'var(--bg3)',border:'1px solid var(--bdr2)',color:'var(--dtxt)',cursor:'pointer',fontWeight:600}},
             '📋 Copy for Email'),
@@ -25976,7 +25976,7 @@ function MyLessonsPanel({ platform, toast }) {
       React.createElement('div',{style:{background:'linear-gradient(135deg,#0a0f1a,#162038)',border:'3px solid var(--gold)',borderRadius:16,padding:'2.5rem',textAlign:'center',marginBottom:'1.5rem',position:'relative',overflow:'hidden'}},
         React.createElement('div',{style:{position:'absolute',inset:0,background:'radial-gradient(ellipse 80% 50% at 50% 0%,rgba(200,145,58,0.1),transparent 60%)',pointerEvents:'none'}}),
         React.createElement('div',{style:{fontSize:'2.5rem',marginBottom:'0.75rem'}},'\uD83C\uDFC5'),
-        React.createElement('div',{style:{fontSize:'0.62rem',fontWeight:700,letterSpacing:'0.25em',textTransform:'uppercase',color:'var(--gold)',marginBottom:'0.5rem',fontFamily:'var(--font-mono)'}},'Refined Recovery Network'),
+        React.createElement('div',{style:{fontSize:'0.62rem',fontWeight:700,letterSpacing:'0.25em',textTransform:'uppercase',color:'var(--gold)',marginBottom:'0.5rem',fontFamily:'var(--font-mono)'}},'Refined Recovery RECOVERY'),
         React.createElement('div',{style:{fontFamily:'var(--font-serif)',fontSize:'1.05rem',color:'rgba(255,255,255,0.6)',marginBottom:'0.5rem'}},'\u201cCertificate of Completion\u201d'),
         React.createElement('div',{style:{fontFamily:'var(--font-serif)',fontSize:'2.2rem',fontWeight:700,color:'var(--gold)',lineHeight:1.1,marginBottom:'0.25rem'}},'Step ' + certStep),
         React.createElement('div',{style:{fontFamily:'var(--font-serif)',fontSize:'1.1rem',color:'var(--dtxt)',marginBottom:'1.25rem'}},step.title||''),
@@ -25984,7 +25984,7 @@ function MyLessonsPanel({ platform, toast }) {
         React.createElement('div',{style:{fontFamily:'var(--font-serif)',fontSize:'1.6rem',fontWeight:700,color:'var(--dtxt)',marginBottom:'1rem'}},platform.members&&platform.members[0]?platform.members[0].name:'POLR Member'),
         React.createElement('div',{style:{borderTop:'1px solid rgba(200,145,58,0.25)',paddingTop:'1rem',marginTop:'0.5rem'}},
           React.createElement('div',{style:{fontSize:'0.72rem',color:'rgba(255,255,255,0.4)'}},getContactConfig(platform).name + ' \u00b7 Director ' + new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})),
-          React.createElement('div',{style:{fontSize:'0.65rem',color:'rgba(255,255,255,0.3)',marginTop:'0.2rem'}},'\u00a9 ' + new Date().getFullYear() + ' Refined Recovery Network, Inc. \u00b7 {POLR_WEBSITE}')
+          React.createElement('div',{style:{fontSize:'0.65rem',color:'rgba(255,255,255,0.3)',marginTop:'0.2rem'}},'\u00a9 ' + new Date().getFullYear() + ' Refined Recovery Recovery, Inc. \u00b7 {POLR_WEBSITE}')
         )
       ),
       React.createElement('div',{style:{display:'flex',gap:'0.75rem',justifyContent:'center',flexWrap:'wrap'}},
@@ -29255,7 +29255,7 @@ function ContactConfigPanel({ platform, update, toast, session }) {
 
   var cfg = platform.contactConfig || {};
   var hq  = Object.assign({
-    name:'Refined Recovery Network', shortName:'POLR',
+    name:'Refined Recovery Recovery', shortName:'POLR',
     phone:'{POLR_PHONE}', email:'{POLR_EMAIL}',
     website:'polrnetwork.com', address:'Thibodaux, Louisiana',
     tagline:'Walk well.'
@@ -29378,7 +29378,7 @@ function ContactConfigPanel({ platform, update, toast, session }) {
       ),
       React.createElement('div',{className:'d-card-body'},
         React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem 1.25rem'}},
-          FIELD('Organization Name',hqForm.name,setHQField('name'),'Refined Recovery Network'),
+          FIELD('Organization Name',hqForm.name,setHQField('name'),'Refined Recovery Recovery'),
           FIELD('Short Name',hqForm.shortName,setHQField('shortName'),'POLR'),
           FIELD('Phone Number',hqForm.phone,setHQField('phone'),'985.224.7421','Appears on all documents, receipts, and footers','tel'),
           FIELD('Email Address',hqForm.email,setHQField('email'),'admin@polrnetwork.com','Primary contact email throughout platform','email'),
@@ -29391,7 +29391,7 @@ function ContactConfigPanel({ platform, update, toast, session }) {
         React.createElement('div',{style:{marginTop:'1rem',padding:'0.85rem 1rem',background:'rgba(200,145,58,0.06)',
           border:'1px solid rgba(200,145,58,0.18)',borderRadius:9,fontSize:'0.78rem',color:'var(--dmuted)'}},
           React.createElement('span',{style:{fontWeight:700,color:'var(--gold)'}},'Preview: '),
-          '"', hqForm.tagline||'Walk well.', '" — ', hqForm.name||'Refined Recovery Network',
+          '"', hqForm.tagline||'Walk well.', '" — ', hqForm.name||'Refined Recovery Recovery',
           ' · ', hqForm.website||'polrnetwork.com', ' · ', hqForm.phone||'985.224.7421'
         ),
         React.createElement('button',{onClick:saveHQ,className:'btn-primary',style:{marginTop:'1rem',fontSize:'0.88rem'}},
@@ -29913,9 +29913,9 @@ const PATHWAYS = [{
   cta: 'Become a Sponsor'
 }];
 const STEPS_DATA = [
-  // The 12 Steps of Refined Recovery Network
+  // The 12 Steps of Refined Recovery Recovery
   // Adapted from the 12 Steps of AA, biblically focused
-  // \u00a9 Refined Recovery Network, Inc. \u2014 {POLR_WEBSITE}
+  // \u00a9 Refined Recovery Recovery, Inc. \u2014 {POLR_WEBSITE}
   {
     n: 1,
     title: 'We Admitted Our Powerlessness',
@@ -29996,7 +29996,7 @@ const LEGAL_DOCS = {
     version: '2026-02',
     content: [{
       h: '1. Who We Are',
-      p: 'Refined Recovery Network is a Christ-centered, nonprofit recovery ministry in Thibodaux, Louisiana. We are not a licensed medical provider, therapist, or addiction treatment center.'
+      p: 'Refined Recovery Recovery is a Christ-centered, nonprofit recovery ministry in Thibodaux, Louisiana. We are not a licensed medical provider, therapist, or addiction treatment center.'
     }, {
       h: '2. Faith-Based Mission',
       p: 'All programs are grounded in biblical faith. Participation is voluntary and open to anyone seeking hope and healing.'
@@ -30412,7 +30412,7 @@ function SiteFooter({
     className: "footer-top"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "footer-brand"
-  }, "Refined Recovery Network"), /*#__PURE__*/React.createElement("div", {
+  }, "Refined Recovery Recovery"), /*#__PURE__*/React.createElement("div", {
     className: "footer-tagline"
   }, "\"Healing and hope for the hurting\" \u2014 Christ-centered recovery ministry serving South Louisiana since 1995."), /*#__PURE__*/React.createElement("div", {
     className: "footer-contact"
@@ -30462,7 +30462,7 @@ function SiteFooter({
     }
   }, "Give Now \u2192"))), /*#__PURE__*/React.createElement("div", {
     className: "footer-bottom"
-  }, /*#__PURE__*/React.createElement("span", null, "\xA9 2026 Refined Recovery Network, Inc. \xB7 Thibodaux, Louisiana \xB7 501(c)(3) Nonprofit"), /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("span", null, "\xA9 2026 Refined Recovery Recovery, Inc. \xB7 Thibodaux, Louisiana \xB7 501(c)(3) Nonprofit"), /*#__PURE__*/React.createElement("span", {
     className: "footer-ww"
   }, "\"Walk well.\""))));
 }
@@ -30500,7 +30500,7 @@ function HomePage({
     className: "hero-eyebrow"
   }, "Christ-Centered Recovery Ministry \xB7 South Louisiana \xB7 Est. 1995"), /*#__PURE__*/React.createElement("h1", {
     className: "hero-title"
-  }, "Refined Recovery Network", /*#__PURE__*/React.createElement("span", {
+  }, "Refined Recovery Recovery", /*#__PURE__*/React.createElement("span", {
     className: "hero-title-sub"
   }, "Healing and hope for the hurting.")), /*#__PURE__*/React.createElement("div", {
     className: "hero-divider"
@@ -30619,7 +30619,7 @@ function HomePage({
       fontSize: '0.78rem',
       color: 'rgba(255,255,255,0.35)'
     }
-  }, "\u2014 Jeff Walthers, Director \xB7 Refined Recovery Network")), /*#__PURE__*/React.createElement("p", {
+  }, "\u2014 Jeff Walthers, Director \xB7 Refined Recovery Recovery")), /*#__PURE__*/React.createElement("p", {
     style: {
       fontFamily: 'var(--font-italic)',
       fontSize: '1.05rem',
@@ -30935,7 +30935,7 @@ function HomePage({
       color: 'var(--gold2)',
       marginBottom: '1.25rem'
     }
-  }, "Refined Recovery Network"), [['📞', 'Phone', '{POLR_PHONE}'], ['✉️', 'Email', '{POLR_EMAIL}'], ['📍', 'POLR Place', '501-A St. Mary St, Thibodaux LA 70301'], ['🌐', 'Website', 'www.{POLR_WEBSITE}']].map(function ([icon, label, val]) {
+  }, "Refined Recovery Recovery"), [['📞', 'Phone', '{POLR_PHONE}'], ['✉️', 'Email', '{POLR_EMAIL}'], ['📍', 'POLR Place', '501-A St. Mary St, Thibodaux LA 70301'], ['🌐', 'Website', 'www.{POLR_WEBSITE}']].map(function ([icon, label, val]) {
     return /*#__PURE__*/React.createElement("div", {
       key: label,
       className: "contact-item"
@@ -31811,7 +31811,7 @@ function EducationPage({ setPage, page, session, mobileOpen, setMobileOpen }) {
       React.createElement('div', {style:{borderLeft:'3px solid var(--gold)',paddingLeft:'1.5rem',margin:'2rem 0'}},
         React.createElement('p', {style:{fontFamily:'var(--font-serif)',fontSize:'1.1rem',fontStyle:'italic',color:'var(--navy)',lineHeight:1.8,marginBottom:'0.5rem'}},
           '\u201cEvery job placement is not just an employment record \u2014 it is a family stabilized, a neighborhood changed, and a testimony written.\u201d'),
-        React.createElement('div', {style:{fontSize:'0.8rem',color:'var(--muted)',fontWeight:600}}, 'Refined Recovery Network \u00b7 Refined Recovery Network')
+        React.createElement('div', {style:{fontSize:'0.8rem',color:'var(--muted)',fontWeight:600}}, 'Refined Recovery Network \u00b7 Refined Recovery Recovery')
       )
     ),
 
@@ -31848,7 +31848,7 @@ function LegalPage({
     className: "hero-title"
   }, "Legal & Policies"), /*#__PURE__*/React.createElement("p", {
     className: "hero-sub"
-  }, "Refined Recovery Network is committed to clarity, integrity, and your protection.")), /*#__PURE__*/React.createElement("div", {
+  }, "Refined Recovery Recovery is committed to clarity, integrity, and your protection.")), /*#__PURE__*/React.createElement("div", {
     className: "legal-tabs"
   }, Object.entries(LEGAL_DOCS).map(function ([k, v]) {
     return /*#__PURE__*/React.createElement("button", {
@@ -32083,7 +32083,7 @@ function DonatePage({
       color: 'var(--muted)',
       lineHeight: 1.8
     }
-  }, "Refined Recovery Network, Inc. is a registered 501(c)(3) tax-exempt nonprofit. All donations are tax-deductible. Contact {POLR_EMAIL} or {POLR_PHONE} for questions."))), modal && /*#__PURE__*/React.createElement("div", {
+  }, "Refined Recovery Recovery, Inc. is a registered 501(c)(3) tax-exempt nonprofit. All donations are tax-deductible. Contact {POLR_EMAIL} or {POLR_PHONE} for questions."))), modal && /*#__PURE__*/React.createElement("div", {
     className: "modal-overlay open",
     onClick: function (e) {
       if (e.target === e.currentTarget) setModal(null);
@@ -33793,7 +33793,7 @@ function mkLesson(id, stepNum, title, sections, body, quiz, journalPrompt, teach
   return {
     id: id, stepNum: stepNum, version: 1, title: title,
     author: 'POLR Staff', duration: '45 min', status: 'approved',
-    header: { orgName: 'Refined Recovery Network', stepLabel: stepNum ? 'Step ' + stepNum : title, date: '2026-01-01' },
+    header: { orgName: 'Refined Recovery Recovery', stepLabel: stepNum ? 'Step ' + stepNum : title, date: '2026-01-01' },
     footer: { text: '"Walk well." — {POLR_NAME} · {POLR_WEBSITE} · {POLR_PHONE}', show: true },
     sections: sections,
     bodyBlocks: [{ id: 'b1', label: 'Lesson Body', content: body }],
@@ -34909,7 +34909,7 @@ add['mn-2'] = [
      {q:'How is Scripture used in a POLR meeting?',c:['To judge and correct wrong behavior','To determine who is Christian enough to participate','To illumine — offering wisdom to everyone regardless of their prior relationship with the Bible','To replace the 12 steps'],a:2,e:'In POLR, Scripture illumines — it offers wisdom that applies to everyone regardless of background. It is not used to judge or exclude. The door is wide enough for everyone.'}],'40 min'),
 
   mkL('mn2-l2','mn-2',2,'Leading with Scripture in Recovery Contexts',
-    'Using Scripture effectively in a recovery meeting requires wisdom. The same verse that opens a door for one person can close it for another. Here is how to lead with Scripture well.\n\nContext first:\nBefore quoting Scripture, establish the human truth. "Most of us came in here having tried to stop and failed. Paul describes exactly this experience..." The Scripture illuminates something the listener already feels — it does not introduce a foreign idea.\n\nKJV in POLR:\nRefined Recovery Network uses the King James Version as its primary text. The KJV\'s literary quality, memorability, and connection to English-language recovery tradition all make it the right choice. When reading KJV publicly: read slowly. The Elizabethan English is unfamiliar. Pause after reading to explain the plain meaning in modern language.\n\nScripture as invitation, not weapon:\nPeople in early recovery often carry religious wounds — religion used to shame them, condemn them, or reject them. Scripture deployed as a weapon closes doors. Scripture offered as bread — nourishment for the journey — opens them.\n\nHandling theological disagreement:\nSomeone will disagree. They will quote a different translation, a different interpretation, or reject the text entirely. The correct response: "That is a fair perspective. What I know is what this verse has meant to people in recovery who have worked these steps. What matters most is what you do with your life today." Return to recovery. Do not argue theology in a meeting.\n\nMemorization for leaders:\nA Group Chair or Ambassador who has committed key verses to memory can offer them naturally in the moment — not as a performance, but as a resource. Suggested verses to memorize: Proverbs 3:5-6, Romans 7:18, James 5:16, Psalm 51:10, Matthew 5:23-24, Hebrews 11:1.',
+    'Using Scripture effectively in a recovery meeting requires wisdom. The same verse that opens a door for one person can close it for another. Here is how to lead with Scripture well.\n\nContext first:\nBefore quoting Scripture, establish the human truth. "Most of us came in here having tried to stop and failed. Paul describes exactly this experience..." The Scripture illuminates something the listener already feels — it does not introduce a foreign idea.\n\nKJV in POLR:\nRefined Recovery Recovery uses the King James Version as its primary text. The KJV\'s literary quality, memorability, and connection to English-language recovery tradition all make it the right choice. When reading KJV publicly: read slowly. The Elizabethan English is unfamiliar. Pause after reading to explain the plain meaning in modern language.\n\nScripture as invitation, not weapon:\nPeople in early recovery often carry religious wounds — religion used to shame them, condemn them, or reject them. Scripture deployed as a weapon closes doors. Scripture offered as bread — nourishment for the journey — opens them.\n\nHandling theological disagreement:\nSomeone will disagree. They will quote a different translation, a different interpretation, or reject the text entirely. The correct response: "That is a fair perspective. What I know is what this verse has meant to people in recovery who have worked these steps. What matters most is what you do with your life today." Return to recovery. Do not argue theology in a meeting.\n\nMemorization for leaders:\nA Group Chair or Ambassador who has committed key verses to memory can offer them naturally in the moment — not as a performance, but as a resource. Suggested verses to memorize: Proverbs 3:5-6, Romans 7:18, James 5:16, Psalm 51:10, Matthew 5:23-24, Hebrews 11:1.',
     [{q:'When introducing a Scripture in a recovery meeting, what should you do first?',c:['Read the verse then explain it','Establish the human truth the verse illuminates before quoting it','Ask the group to open their Bibles','Quote the verse in the original Greek or Hebrew for accuracy'],a:1,e:'Establish the human truth first — the experience everyone in the room feels. Then show how the Scripture illuminates what they already know. This makes the Scripture land, rather than feeling foreign.'},
      {q:'What is the recommended response when someone theologically disagrees with a Scripture you share?',c:['Argue your interpretation with additional verses','Apologize and remove the verse from your teaching','Return to recovery: "What matters most is what you do with your life today"','Ask them to keep their opinion to themselves'],a:2,e:'Return to recovery. You are not there to argue theology. Acknowledge their perspective briefly, then redirect: "What matters most is what you do with your life today." Stay in your lane.'},
      {q:'Why does POLR use the King James Version as its primary text?',c:['Because it is the only accurate translation','Because it is legally required for religious organizations','Because of its literary quality, memorability, and connection to English-language recovery tradition','Because it is the easiest to understand'],a:2,e:'POLR uses the KJV for its literary quality, memorability, and deep connection to the English-language recovery tradition. When reading KJV publicly, read slowly and explain the plain meaning in modern language.'}],'35 min'),
@@ -35028,7 +35028,7 @@ applySupp();
         });
       }
       return {
-        POLR_NAME:    cfg.name    || 'Refined Recovery Network',
+        POLR_NAME:    cfg.name    || 'Refined Recovery Recovery',
         POLR_PHONE:   cfg.phone   || '985.224.7421',
         POLR_EMAIL:   cfg.email   || 'admin@polrnetwork.com',
         POLR_WEBSITE: cfg.website || 'polrnetwork.com',
@@ -35037,7 +35037,7 @@ applySupp();
       };
     } catch(e) {
       return {
-        POLR_NAME: 'Refined Recovery Network', POLR_PHONE: '985.224.7421',
+        POLR_NAME: 'Refined Recovery Recovery', POLR_PHONE: '985.224.7421',
         POLR_EMAIL: 'admin@polrnetwork.com', POLR_WEBSITE: 'polrnetwork.com',
         POLR_ADDRESS: 'Thibodaux, Louisiana', POLR_TAGLINE: 'Walk well.'
       };
