@@ -46731,12 +46731,10 @@ add['it-foundations'] = [
     _apiFetch('/testimonies/featured', {
       headers: { Authorization: 'Bearer ' + token }
     })
-    .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d && d.excerpt) {
         window.__featuredTestimony = d;
-        var els = document.querySelectorAll('[data-testimony-excerpt]')
-    .catch(function(e){ if(typeof handleApiError==='function') handleApiError(e,{module:'testimonies',path:'/testimonies/featured',optional:true}); });
+        var els = document.querySelectorAll('[data-testimony-excerpt]');
         els.forEach(function(el) { el.textContent = d.excerpt; });
         var names = document.querySelectorAll('[data-testimony-name]');
         names.forEach(function(el) { el.textContent = d.author_name || 'Ministry Testimony'; });
@@ -51375,11 +51373,11 @@ async function attemptTokenRefresh(){
 var DATA_CHECKS = [
   { key: 'members',          path: '/members',                 min: 0 },
   { key: 'housing',          path: '/housing',      min: 0 },
-  { key: 'employers',        path: '/workforce/employers',    min: 0 },
+  { key: 'employers',        path: '/workforce',    min: 0 },
   { key: 'donations',        path: '/donations',    min: 0 },
   { key: 'meetings',         path: '/meetings',          min: 0 },
-  { key: 'campuses',         path: '/admin/campuses',          min: 0 },
-  { key: 'placements',       path: '/workforce/employers',    min: 0 },
+  { key: 'campuses',         path: '/campuses',          min: 0 },
+  { key: 'placements',       path: '/workforce',    min: 0 },
   { key: 'grantApplications',path: '/repairs',            min: 0 },
 ];
 
