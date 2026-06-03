@@ -1281,6 +1281,7 @@ window._rrnJWTReady = false;
       // Any failure (429, CORS, network) = immediate local token, no retries
       console.warn('[RRN] Backend auth failed — local mode active');
       window.RRN_BACKEND_LIVE = false; window._backendOnline = false;
+      window._backendRateLimited = true;
       var ls={id:'local-rrnhq',username:'RRNHQ',email:'RRNHQ@refinedrecovery.com',
         name:'Chuck Edwards',role:'executive_director',level:0,campus:'All',
         token:'local_rrn_'+Date.now(),ts:Date.now()};
@@ -50823,10 +50824,7 @@ window._calebToggle=function(){
 // -- SPEECH ------------------------------------------------------------
 window._isSpeaking=false;
 window._piperOnline=false;
-// Piper TTS disabled - using browser speech synthesis for reliable audio
-fetch('http://localhost:5002/health').then(function(r){return r.json();})
-  .then(function(d){window._piperOnline=false;console.log('[CALEB] Piper TTS: disabled, using browser TTS');})
-  .catch(function(){window._piperOnline=false;});
+// Piper TTS disabled - using browser speech synthesis
 
 window._calebSpeak=function(text,cb){
   if(!text||window._calebGreeting&&!window._calebGreeted)return;
@@ -51298,16 +51296,26 @@ function tokenExpiresInSec(tok){
 
 // -- CHECK 1: Backend Health --------------------------------------------------
 async function checkBackend(){
-  if(!navigator.onLine){ window._backendOnline=false; return; }
+  if(!navigator.onLine){ window._backendOnline=false; return false; }
+  // If already known rate-limited/offline this session, skip health check
+  if(window._backendRateLimited){ return false; }
   try{
     var r = await fetch(RAIL+'/api/health', {
       signal: AbortSignal.timeout(HEALTH_TIMEOUT),
       headers: authHeader()
     });
+    if(r.status === 429){
+      window._backendOnline = false;
+      window.RRN_BACKEND_LIVE = false;
+      window._backendRateLimited = true;
+      log('Backend rate limited — local mode permanent for this session', 'warn');
+      return false;
+    }
     var d = await r.json();
     if(r.ok && (d.status==='ok'||d.ok||d.healthy)){
       window._backendOnline  = true;
       window.RRN_BACKEND_LIVE = true;
+      window._backendRateLimited = false;
       _consecutiveFails = 0;
       return true;
     }
@@ -51464,14 +51472,17 @@ function checkNavigation(){
 function checkServiceWorker(){
   if(!('serviceWorker' in navigator)) return;
   if(window.location.protocol === 'file:') return;
-  navigator.serviceWorker.getRegistration().then(function(reg){
-    if(!reg){
-      log('Service worker not registered — attempting registration', 'warn');
-      navigator.serviceWorker.register('/sw.js').catch(function(e){
-        log('SW registration failed: '+e.message, 'warn');
-      });
-    }
-  });
+  // Use blob SW if available, don't try /sw.js which 404s on GitHub Pages
+  if(window.rrnSWBlob){
+    navigator.serviceWorker.getRegistration().then(function(reg){
+      if(!reg){
+        navigator.serviceWorker.register(window.rrnSWBlob,{scope:'/rrn-platform/'})
+          .catch(function(){});
+      }
+    });
+    return;
+  }
+  // Skip /sw.js registration — it 404s on GitHub Pages
 }
 
 // -- CHECK 7: WebSocket (Caleb real-time) -------------------------------------
