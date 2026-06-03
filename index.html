@@ -47969,10 +47969,10 @@ function rrnSaveProgress(lessonId, data) {
 
 window.rrnApi=window.rrnApi||{progress:{get:function(){return Promise.resolve({})},set:function(){return Promise.resolve()}},lessons:{get:function(){return Promise.resolve([])},complete:function(){return Promise.resolve()}}};function rrnLoadProgressFromApi() {
   // SCAAM: serve from localStorage first on file:// or offline
-  if(window.location.protocol === 'file:' || !navigator.onLine){
+  if(window.location.protocol === 'file:' || !navigator.onLine || window._backendOnline===false){
     return Promise.resolve(rrnGetProgress());
   }
-  return _apiFetch('/lms/progress').then(function(r){ return r && r.json ? r.json() : r; }).then(function(res) {
+  return _apiFetch('/lms/progress').then(function(res) {
     if (res && res.progress) {
       localStorage.setItem(PROGRESS_KEY, JSON.stringify(res.progress));
       return res.progress;
@@ -49672,12 +49672,12 @@ window._ollamaOnline = false;
 // Check RAG server
 window._ragOnline = false;
 (function checkRAG(){
-  if(!navigator.onLine){window._ragOnline=false;setTimeout(checkRAG,30000);return;}
+  if(!navigator.onLine||window._backendOnline===false){window._ragOnline=false;setTimeout(checkRAG,60000);return;}
   fetch('https://rrn-api-production.up.railway.app/api/health',{signal:AbortSignal.timeout(3000)})
-  .then(function(r){return r.json();})
-  .then(function(d){window._ragOnline = d.status==='ok';})
+  .then(function(r){if(r.status===429){window._backendOnline=false;window._ragOnline=false;return;}return r.json();})
+  .then(function(d){if(d)window._ragOnline = d.status==='ok';})
   .catch(function(){window._ragOnline=false;});
-  setTimeout(checkRAG, 30000);
+  setTimeout(checkRAG, 60000);
 })();
 
 // WebSocket status
@@ -51031,10 +51031,11 @@ window._cSend=function(){
 // -- OLLAMA HEALTH -----------------------------------------------------
 // Check Railway backend
 function _checkBackend(){
-  if(!navigator.onLine){window._backendOnline=false;return;}
+  if(!navigator.onLine||window._backendOnline===false){return;}
   fetch('https://rrn-api-production.up.railway.app/api/health')
-  .then(function(r){return r.json();})
+  .then(function(r){if(r.status===429){window._backendOnline=false;console.log('[RRN] Backend rate limited — local mode');return null;}return r.json();})
   .then(function(d){
+    if(!d)return;
     if(d.status==='ok'){
       console.log('[RRN] Backend online');
       window._backendOnline=true;
@@ -51070,8 +51071,8 @@ function _checkBackend(){
     console.log('[RRN] Backend offline - using localStorage');
   });
 }
-setTimeout(_checkBackend, 2000);
-setInterval(_checkBackend, 600000); // Every 10 min
+setTimeout(_checkBackend, 5000);
+setInterval(_checkBackend, 1800000); // Every 30 min
 
 function _checkOllama(){
   _setHeal('check');
