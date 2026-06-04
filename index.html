@@ -51699,10 +51699,104 @@ window._calebToggle=function(){
   else{d.style.transform='translateX(0)';d.classList.add('open');setTimeout(window._renderRepairLog,100);}
 };
 
-// -- SPEECH ------------------------------------------------------------
-window._isSpeaking=false;
-window._piperOnline=false;
-// Piper TTS disabled - using browser speech synthesis
+// -- VOICE STACK -------------------------------------------------------
+// Priority: Faster Whisper (STT) + Piper (TTS) when local server running
+// Fallback: Chrome Web Speech API (no server needed)
+// Auto-detects on startup. No config required.
+
+window._isSpeaking    = false;
+window._piperOnline   = false;
+window._whisperOnline = false;
+
+// Check for local voice server (Faster Whisper on 5003, Piper on 5002)
+(function detectVoiceStack(){
+  // Check Piper TTS
+  fetch('http://localhost:5002/health', { method:'GET' })
+    .then(function(r){ if(r.ok){ window._piperOnline=true; console.log('[CALEB VOICE] Piper TTS online — high quality voice active'); } })
+    .catch(function(){});
+
+  // Check Faster Whisper STT
+  fetch('http://localhost:5003/health', { method:'GET' })
+    .then(function(r){ if(r.ok){ window._whisperOnline=true; console.log('[CALEB VOICE] Faster Whisper online — accurate STT active'); } })
+    .catch(function(){});
+})();
+
+// Faster Whisper STT — records audio blob, sends to local server, returns transcript
+// Used instead of Chrome Web Speech when whisper server is running
+window._whisperTranscribe = function(audioBlob, onResult, onError){
+  if(!window._whisperOnline){ onError('whisper-offline'); return; }
+  var form = new FormData();
+  form.append('audio', audioBlob, 'audio.webm');
+  form.append('language', 'en');
+  form.append('model', 'base.en');
+  fetch('http://localhost:5003/transcribe', { method:'POST', body:form })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ onResult(d.text || ''); })
+    .catch(function(e){ window._whisperOnline=false; onError(e.message); });
+};
+
+// Upgrade _startPersistentMic to use Faster Whisper when available
+window._startPersistentMicWithWhisper = function(){
+  if(!window._whisperOnline){ _startPersistentMic(); return; }
+
+  // Use MediaRecorder + Faster Whisper for better accuracy
+  navigator.mediaDevices.getUserMedia({ audio:true })
+    .then(function(stream){
+      window._micGranted = true;
+      window._micActive  = true;
+      _micSetStatus('listening');
+      console.log('[CALEB VOICE] Using Faster Whisper STT');
+
+      var chunks = [];
+      var recorder = new MediaRecorder(stream, { mimeType:'audio/webm' });
+
+      recorder.ondataavailable = function(e){ if(e.data.size>0) chunks.push(e.data); };
+
+      recorder.onstop = function(){
+        if(!chunks.length || !window._micActive) return;
+        var blob = new Blob(chunks, { type:'audio/webm' });
+        chunks = [];
+        if(window._micSuspend || window._isSpeaking) return;
+        _micSetStatus('thinking');
+        window._whisperTranscribe(blob,
+          function(text){
+            text = text.trim();
+            if(text && text.length > 1){
+              console.log('[CALEB WHISPER]', text);
+              var inp = document.getElementById('caleb-text-input');
+              if(inp) inp.value = text;
+              window._cSend();
+            }
+            _micSetStatus(window._micActive ? 'listening' : 'idle');
+          },
+          function(){ _micSetStatus(window._micActive ? 'listening' : 'idle'); }
+        );
+      };
+
+      // Record in 3-second chunks (silence detection)
+      function recordChunk(){
+        if(!window._micActive){ stream.getTracks().forEach(function(t){ t.stop(); }); return; }
+        if(window._micSuspend || window._isSpeaking){
+          setTimeout(recordChunk, 500);
+          return;
+        }
+        recorder.start();
+        setTimeout(function(){
+          if(recorder.state === 'recording') recorder.stop();
+          setTimeout(recordChunk, 100);
+        }, 3000);
+      }
+      recordChunk();
+
+      window._micRecog = {
+        stop: function(){ window._micActive=false; stream.getTracks().forEach(function(t){ t.stop(); }); }
+      };
+    })
+    .catch(function(e){
+      console.warn('[CALEB VOICE] Whisper mic failed, using Web Speech:', e.message);
+      _startPersistentMic();
+    });
+};
 
 window._calebSpeak=function(text,cb){
   if(!text||window._calebGreeting&&!window._calebGreeted)return;
@@ -52028,14 +52122,10 @@ window._cSend=function(){
   // ── NAVIGATE ────────────────────────────────────────────────────────────
   if(type === 'nav'){
     var section = target;
-    if(window._rrnSetActiveSection){
-      window._rrnSetActiveSection(section);
-      setTimeout(function(){
-        var d=document.getElementById('caleb-draw');
-        if(d){d.style.transform='translateX(110%)';d.classList.remove('open');}
-      }, 200);
-    }
-    window._calebContextResponse(section, q);
+    // Use _calebNavigate which waits for React to mount _rrnSetActiveSection
+    window._calebNavigate(section, q);
+    // Log to memory
+    if(window.CalebMemory) CalebMemory.remember(q, 'Navigated to '+section, best.id);
     _micSetStatus(window._micGranted ? 'listening' : 'idle');
     return;
   }
@@ -52303,6 +52393,187 @@ function _calebDetectIncidents(health){
   return incidents;
 }
 
+window._calebSystemHealth = _calebSystemHealth;
+window._calebDetectIncidents = _calebDetectIncidents;
+window._buildDailyBriefing = _buildDailyBriefing;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CALEB MEMORY SYSTEM — Free, offline, persistent
+// Stores context, preferences, recent actions, conversation history
+// No server. No cost. Works on file:// and GitHub Pages.
+// ═══════════════════════════════════════════════════════════════════════════
+
+window.CalebMemory = (function(){
+  var STORE_KEY = 'caleb_memory';
+  var MAX_HISTORY = 50;
+
+  function load(){
+    try{ return JSON.parse(localStorage.getItem(STORE_KEY)||'{}'); }catch(e){ return {}; }
+  }
+  function save(mem){
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(mem)); }catch(e){}
+  }
+
+  // Schema
+  function blank(){
+    return {
+      user: {
+        name: '', level: null, campus: '', lastSeen: null,
+        preferredVoice: '', readingSpeed: 0.88,
+      },
+      session: {
+        lastSection: '', visitCount: 0, streak: 0,
+        lastCheckIn: null, lessonsRead: 0,
+      },
+      context: {
+        currentLesson: null, currentStep: null,
+        lastGrantWorkedOn: null, lastRepairLogged: null,
+        prayerRequests: [], victories: [],
+      },
+      history: [],  // last N interactions
+      preferences: {
+        voiceEnabled: true, briefingOnOpen: true,
+        quietHours: false,
+      },
+    };
+  }
+
+  function get(){ var m=load(); return Object.assign(blank(), m); }
+
+  function set(path, value){
+    var m = get();
+    var parts = path.split('.');
+    var obj = m;
+    for(var i=0;i<parts.length-1;i++){
+      if(!obj[parts[i]]) obj[parts[i]]={};
+      obj = obj[parts[i]];
+    }
+    obj[parts[parts.length-1]] = value;
+    save(m);
+  }
+
+  function remember(userSaid, calebDid, intent){
+    var m = get();
+    if(!m.history) m.history = [];
+    m.history.unshift({
+      ts: new Date().toISOString(),
+      user: userSaid,
+      caleb: calebDid,
+      intent: intent||'',
+    });
+    if(m.history.length > MAX_HISTORY) m.history = m.history.slice(0, MAX_HISTORY);
+    save(m);
+  }
+
+  function syncFromSession(){
+    var sess = window._rrnAutoSession || {};
+    if(sess.name || sess.level != null){
+      var m = get();
+      if(sess.name) m.user.name = sess.name;
+      if(sess.level != null) m.user.level = sess.level;
+      if(sess.campus) m.user.campus = sess.campus;
+      m.user.lastSeen = new Date().toISOString();
+      m.session.visitCount = (m.session.visitCount||0) + 1;
+      // Streak: increment if last seen was yesterday
+      var last = m.user.lastSeen ? new Date(m.user.lastSeen) : null;
+      var today = new Date().toDateString();
+      var yesterday = new Date(Date.now()-86400000).toDateString();
+      if(last && last.toDateString() === yesterday) m.session.streak = (m.session.streak||0)+1;
+      else if(!last || last.toDateString() !== today) m.session.streak = 1;
+      save(m);
+    }
+  }
+
+  function getContext(){
+    var m = get();
+    var recent = (m.history||[]).slice(0,5).map(function(h){
+      return h.intent + ': ' + (h.user||'').slice(0,40);
+    }).join('; ');
+    return {
+      name: m.user.name || '',
+      level: m.user.level,
+      streak: m.session.streak||0,
+      lessonsRead: m.session.lessonsRead||0,
+      visitCount: m.session.visitCount||0,
+      lastSection: m.session.lastSection||'',
+      recentHistory: recent,
+      currentLesson: m.context.currentLesson,
+      prayerCount: (m.context.prayerRequests||[]).length,
+    };
+  }
+
+  // Auto-sync session on load
+  setTimeout(syncFromSession, 2000);
+
+  return { get:get, set:set, remember:remember, syncFromSession:syncFromSession, getContext:getContext, clear:function(){ localStorage.removeItem(STORE_KEY); } };
+})();
+
+// ── Patch _cSend to use memory ─────────────────────────────────────────────
+// Store each interaction and track section visits
+var _origCSend_nav = window._cSend;
+window._cSend = function(){
+  var inp = document.getElementById('caleb-text-input');
+  var q = inp ? inp.value.trim() : '';
+  _origCSend_nav && _origCSend_nav.apply(this, arguments);
+  // Memory logging happens after _cSend processes — captured by intent engine
+};
+
+// ── Track section changes in memory ───────────────────────────────────────
+(function(){
+  var _origSet = window._rrnSetActiveSection;
+  function patchNav(fn){
+    return function(section){
+      CalebMemory.set('session.lastSection', section);
+      if(fn) fn(section);
+    };
+  }
+  if(_origSet){
+    window._rrnSetActiveSection = patchNav(_origSet);
+  } else {
+    // Wait for React to mount it
+    var _navWatcher = setInterval(function(){
+      if(window._rrnSetActiveSection && !window._rrnSetActiveSection._memPatched){
+        var orig = window._rrnSetActiveSection;
+        window._rrnSetActiveSection = patchNav(orig);
+        window._rrnSetActiveSection._memPatched = true;
+        clearInterval(_navWatcher);
+      }
+    }, 500);
+  }
+})();
+
+// ── Use memory in daily briefing greeting ─────────────────────────────────
+var _origBriefing = window._buildDailyBriefing;
+window._buildDailyBriefing = function(){
+  CalebMemory.syncFromSession();
+  _origBriefing && _origBriefing();
+};
+
+// ── Nav guard — wait for React to mount _rrnSetActiveSection ─────────────
+// The scored intent engine calls this immediately but React may not be ready
+window._calebNavigate = function(section, q){
+  function doNav(){
+    if(window._rrnSetActiveSection){
+      window._rrnSetActiveSection(section);
+      setTimeout(function(){
+        var d=document.getElementById('caleb-draw');
+        if(d){d.style.transform='translateX(110%)';d.classList.remove('open');}
+      }, 200);
+      if(window._calebContextResponse) window._calebContextResponse(section, q||'');
+      CalebMemory.set('session.lastSection', section);
+      return true;
+    }
+    return false;
+  }
+  if(!doNav()){
+    // React not mounted yet — retry up to 10 times
+    var attempts = 0;
+    var retry = setInterval(function(){
+      attempts++;
+      if(doNav() || attempts >= 10) clearInterval(retry);
+    }, 300);
+  }
+};
 function _buildDailyBriefing(){
   var health = _calebSystemHealth();
   var incidents = _calebDetectIncidents(health);
@@ -52310,7 +52581,8 @@ function _buildDailyBriefing(){
   var today = new Date();
   var hr = today.getHours();
   var greeting = hr<12?'Good morning':hr<17?'Good afternoon':'Good evening';
-  var name = (window._rrnAutoSession&&window._rrnAutoSession.name) ? window._rrnAutoSession.name.split(' ')[0] : 'Chuck';
+  var _mem = window.CalebMemory ? CalebMemory.getContext() : {};
+  var name = _mem.name ? _mem.name.split(' ')[0] : ((window._rrnAutoSession&&window._rrnAutoSession.name) ? window._rrnAutoSession.name.split(' ')[0] : 'Chuck');
 
   var SCRIPTURES = [
     'Psalm 118:24 — This is the day which the LORD hath made; we will rejoice and be glad in it.',
@@ -52402,7 +52674,9 @@ function _buildDailyBriefing(){
   }
 
   // Voice briefing — condensed to key facts
-  var voiceMsg = greeting + ' ' + name + '. System health is ' + health.score + ' percent. ';
+  var voiceMsg = greeting + ', ' + name + '. ';
+  if(_mem.streak > 1) voiceMsg += 'Day ' + _mem.streak + ' streak. ';
+  voiceMsg += 'System health is ' + health.score + ' percent. ';
   if(health.members > 0) voiceMsg += health.members + ' active members. ';
   if(health.occupancy > 0) voiceMsg += 'Housing at ' + health.occupancy + ' percent. ';
   if(incidents.length > 0) voiceMsg += incidents.length + ' item' + (incidents.length>1?'s':'')+' need your attention. ';
