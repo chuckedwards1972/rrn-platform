@@ -12647,6 +12647,254 @@ function TradePartnersPanel({ platform, update, toast, session, setActive }) {
 // --------------------------------------------------
 // GRANT ENGINE — Automated grant tracking + application generation (L0,L1)
 // --------------------------------------------------
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUB-OPERATOR ONBOARDING PANEL — Exhibit B Phase 1
+// Three-party agreement: ESM + RRN + Sub-Operator
+// Fee structure: 10% ESM + 5% RRN = 85% net to sub-op
+// system-integrity-skill-highest-priority: full workflow, no stubs
+// ═══════════════════════════════════════════════════════════════════════════
+
+function SubOperatorOnboardingPanel({ platform, update, toast, session, setActive }) {
+  var _s = React.useState('list'); var view = _s[0]; var setView = _s[1];
+  var _f = React.useState({
+    legalName:'', entityType:'LLC', state:'Louisiana', ein:'', has501c3:'no',
+    address:'', city:'', zip:'', primaryContact:'', title:'', phone:'', email:'',
+    ministryType:'recovery', campusCount:'1', estimatedMembers:'',
+    tier:'tier1', insuranceConfirmed:'no', signedBy:'', signedTitle:'',
+    agreementDate: new Date().toISOString().split('T')[0],
+    credentialLevel:'L3', status:'pending'
+  }); var form = _f[0]; var setForm = _f[1];
+  var setF = function(k){ return function(e){ setForm(function(p){ var n={}; Object.keys(p).forEach(function(x){n[x]=p[x];}); n[k]=e.target.value; return n; }); }; };
+
+  var STORE_KEY = 'rrn_sub_operators';
+  function getOps(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)||'[]'); }catch(e){ return []; } }
+  function saveOps(ops){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(ops)); }catch(e){} }
+
+  var ops = getOps();
+
+  function submit(){
+    if(!form.legalName||!form.primaryContact||!form.email||!form.phone){
+      toast && toast({icon:'⚠️',title:'Complete all required fields'});
+      return;
+    }
+    if(form.insuranceConfirmed !== 'yes'){
+      toast && toast({icon:'⚠️',title:'Insurance confirmation required before activation'});
+      return;
+    }
+    var newOp = Object.assign({}, form, {
+      id: 'subop_'+Date.now(),
+      createdAt: new Date().toISOString(),
+      status: 'pending-review',
+      agreementVersion: 'Exhibit B v5',
+      feeStructure: { esm: 0.10, rrn: 0.05, net: 0.85 }
+    });
+    var ops2 = getOps();
+    ops2.unshift(newOp);
+    saveOps(ops2);
+    if(update) update(function(p){ var n=Object.assign({},p); n.subOperators=(n.subOperators||[]); n.subOperators.unshift(newOp); return n; });
+    toast && toast({icon:'✅',title:'Sub-operator application submitted'});
+    setView('list');
+    setForm({legalName:'',entityType:'LLC',state:'Louisiana',ein:'',has501c3:'no',address:'',city:'',zip:'',primaryContact:'',title:'',phone:'',email:'',ministryType:'recovery',campusCount:'1',estimatedMembers:'',tier:'tier1',insuranceConfirmed:'no',signedBy:'',signedTitle:'',agreementDate:new Date().toISOString().split('T')[0],credentialLevel:'L3',status:'pending'});
+  }
+
+  function activate(id){
+    var ops2 = getOps().map(function(o){ return o.id===id ? Object.assign({},o,{status:'active',activatedAt:new Date().toISOString()}) : o; });
+    saveOps(ops2);
+    toast && toast({icon:'✅',title:'Sub-operator activated'});
+    setView('list');
+  }
+
+  var fmt = function(n){ return '$'+(n||0).toLocaleString(); };
+
+  var TIERS = {
+    tier1: {label:'Tier 1 — Recovery Ministry', desc:'Weekly meetings, curriculum, peer support. No residential.', gl:'$1M/$2M', prof:'Not required'},
+    tier2: {label:'Tier 2 — Day Program / Transitional', desc:'Day program, transitional housing, structured schedule.', gl:'$2M/$4M', prof:'$1M/$3M'},
+    tier3: {label:'Tier 3 — Residential / Clinical', desc:'Residential treatment, clinical services, court-referred.', gl:'$3M/$5M', prof:'$2M/$5M'},
+  };
+
+  var inp = function(label, key, opts){
+    opts = opts||{};
+    return React.createElement('div',{style:{marginBottom:'0.75rem'}},
+      React.createElement('label',{style:{display:'block',fontSize:'0.72rem',fontWeight:700,color:'var(--dtxt)',marginBottom:'0.25rem'}},
+        label, opts.required && React.createElement('span',{style:{color:'#fc8181'}},' *')
+      ),
+      opts.select
+        ? React.createElement('select',{value:form[key],onChange:setF(key),style:{width:'100%',padding:'0.5rem',borderRadius:6,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dtxt)',fontSize:'0.8rem'}},
+            opts.options.map(function(o){ return React.createElement('option',{key:o.v,value:o.v},o.l); })
+          )
+        : React.createElement('input',{type:opts.type||'text',value:form[key],onChange:setF(key),placeholder:opts.placeholder||'',style:{width:'100%',padding:'0.5rem',borderRadius:6,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dtxt)',fontSize:'0.8rem',boxSizing:'border-box'}})
+    );
+  };
+
+  // LIST VIEW
+  if(view === 'list') return React.createElement('div',null,
+    React.createElement('div',{className:'lvl-header',style:{'--acc':'var(--l2)'}},
+      React.createElement('div',{className:'lvh-tag'},'PLATFORM EXPANSION'),
+      React.createElement('div',{className:'lvh-title'},'🏛️ Sub-Operator Onboarding'),
+      React.createElement('div',{className:'lvh-sub'},'Exhibit B — PWA Expansion Agreement v5 · ESM + RRN + Sub-Operator · Three-Party')
+    ),
+
+    // Fee waterfall summary
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.65rem',marginBottom:'1rem'}},
+      [{label:'ESM Admin Fee',val:'10%',color:'#fc8181',sub:'Gross funds → ESM'},
+       {label:'RRN Platform Fee',val:'5%',color:'#c8913a',sub:'Gross funds → RRN'},
+       {label:'Sub-Op Net',val:'85%',color:'var(--l5)',sub:'After both deductions'}
+      ].map(function(m){ return React.createElement('div',{key:m.label,className:'d-card',style:{textAlign:'center',padding:'0.75rem'}},
+          React.createElement('div',{style:{fontSize:'0.65rem',color:'var(--dmuted)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:'0.25rem'}},m.label),
+          React.createElement('div',{style:{fontSize:'1.4rem',fontWeight:900,color:m.color,fontFamily:'var(--font-mono)'}},m.val),
+          React.createElement('div',{style:{fontSize:'0.62rem',color:'var(--dmuted)'}},m.sub)
+        );
+      })
+    ),
+
+    React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.75rem'}},
+      React.createElement('div',{style:{fontWeight:700,color:'var(--dtxt)'}},ops.length+' sub-operator'+(ops.length!==1?'s':'')+' on file'),
+      React.createElement('button',{onClick:function(){setView('new');},className:'btn-primary',style:{padding:'0.5rem 1.1rem',fontSize:'0.82rem'}},
+        '+ Onboard Sub-Operator')
+    ),
+
+    ops.length === 0
+      ? React.createElement('div',{className:'d-card',style:{padding:'2rem',textAlign:'center',color:'var(--dmuted)'}},
+          React.createElement('div',{style:{fontSize:'1.5rem',marginBottom:'0.5rem'}},'🏛️'),
+          React.createElement('div',{style:{fontWeight:700,marginBottom:'0.25rem'}},'No sub-operators yet'),
+          React.createElement('div',{style:{fontSize:'0.8rem'}},'Click + Onboard to bring a ministry into the RRN network.')
+        )
+      : ops.map(function(op){
+          var tier = TIERS[op.tier]||TIERS.tier1;
+          var statusColor = op.status==='active'?'var(--l5)':op.status==='pending-review'?'var(--gold)':'var(--dmuted)';
+          return React.createElement('div',{key:op.id,className:'d-card',style:{marginBottom:'0.65rem'}},
+            React.createElement('div',{className:'d-card-head',style:{justifyContent:'space-between'}},
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontWeight:700,color:'var(--dtxt)'}},op.legalName),
+                React.createElement('div',{style:{fontSize:'0.7rem',color:'var(--dmuted)'}},op.entityType+' · '+op.state+' · '+tier.label)
+              ),
+              React.createElement('div',{style:{display:'flex',gap:'0.5rem',alignItems:'center'}},
+                React.createElement('span',{style:{fontSize:'0.65rem',fontWeight:700,color:statusColor,textTransform:'uppercase',letterSpacing:'0.08em'}},op.status),
+                op.status==='pending-review' && React.createElement('button',{
+                  onClick:function(){activate(op.id);},
+                  style:{padding:'0.3rem 0.7rem',borderRadius:5,background:'rgba(91,196,110,0.1)',border:'1px solid var(--l5)',color:'var(--l5)',cursor:'pointer',fontSize:'0.7rem',fontWeight:700}
+                },'Activate')
+              )
+            ),
+            React.createElement('div',{className:'d-card-body',style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.5rem',fontSize:'0.75rem'}},
+              React.createElement('div',null,React.createElement('span',{style:{color:'var(--dmuted)'}},'Contact: '),op.primaryContact),
+              React.createElement('div',null,React.createElement('span',{style:{color:'var(--dmuted)'}},'Email: '),op.email),
+              React.createElement('div',null,React.createElement('span',{style:{color:'var(--dmuted)'}},'Credential: '),op.credentialLevel),
+              React.createElement('div',null,React.createElement('span',{style:{color:'var(--dmuted)'}},'Insurance: '),op.tier.toUpperCase()+' GL: '+tier.gl),
+              React.createElement('div',null,React.createElement('span',{style:{color:'var(--dmuted)'}},'Members est: '),op.estimatedMembers||'—'),
+              React.createElement('div',null,React.createElement('span',{style:{color:'var(--dmuted)'}},'Agreement: '),op.agreementVersion)
+            )
+          );
+        })
+  );
+
+  // NEW APPLICATION VIEW
+  return React.createElement('div',null,
+    React.createElement('div',{className:'lvl-header',style:{'--acc':'var(--l2)'}},
+      React.createElement('div',{className:'lvh-tag'},'EXHIBIT B — PWA EXPANSION AGREEMENT v5'),
+      React.createElement('div',{className:'lvh-title'},'New Sub-Operator Application'),
+      React.createElement('div',{className:'lvh-sub'},'Three-party agreement · ESM + RRN + Sub-Operator · All fields required for activation')
+    ),
+
+    React.createElement('button',{onClick:function(){setView('list');},style:{marginBottom:'1rem',padding:'0.4rem 0.9rem',borderRadius:6,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dmuted)',cursor:'pointer',fontSize:'0.78rem'}},'← Back'),
+
+    // Part II: Ministry Identity
+    React.createElement('div',{className:'d-card',style:{marginBottom:'0.85rem'}},
+      React.createElement('div',{className:'d-card-head'},React.createElement('span',{className:'d-card-title'},'PART II — MINISTRY IDENTITY')),
+      React.createElement('div',{className:'d-card-body'},
+        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem'}},
+          inp('Legal Name of Ministry *','legalName',{required:true,placeholder:'e.g. Covenant Recovery Ministries LLC'}),
+          inp('Entity Type','entityType',{select:true,options:[{v:'LLC',l:'LLC'},{v:'Nonprofit',l:'Nonprofit Corporation'},{v:'Church',l:'Church Corporation'},{v:'Other',l:'Other Incorporated Ministry'}]}),
+          inp('State of Organization','state',{placeholder:'Louisiana'}),
+          inp('Federal EIN (if applicable)','ein',{placeholder:'XX-XXXXXXX'}),
+          inp('501(c)(3) Status','has501c3',{select:true,options:[{v:'yes',l:'Yes — active 501(c)(3)'},{v:'no',l:'No'},{v:'pending',l:'Pending'}]}),
+          inp('Primary Ministry Address *','address',{required:true}),
+          inp('City','city',{}),
+          inp('ZIP Code','zip',{})
+        )
+      )
+    ),
+
+    // Part II: Contact
+    React.createElement('div',{className:'d-card',style:{marginBottom:'0.85rem'}},
+      React.createElement('div',{className:'d-card-head'},React.createElement('span',{className:'d-card-title'},'CONTACT & LEADERSHIP')),
+      React.createElement('div',{className:'d-card-body'},
+        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem'}},
+          inp('Primary Contact Name *','primaryContact',{required:true}),
+          inp('Title / Role','title',{placeholder:'Executive Director, Pastor, etc.'}),
+          inp('Phone *','phone',{required:true,type:'tel'}),
+          inp('Email *','email',{required:true,type:'email'})
+        )
+      )
+    ),
+
+    // Ministry profile
+    React.createElement('div',{className:'d-card',style:{marginBottom:'0.85rem'}},
+      React.createElement('div',{className:'d-card-head'},React.createElement('span',{className:'d-card-title'},'MINISTRY PROFILE')),
+      React.createElement('div',{className:'d-card-body'},
+        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem'}},
+          inp('Ministry Type','ministryType',{select:true,options:[
+            {v:'recovery',l:'Recovery Ministry (12-step / covenant)'},{v:'reentry',l:'Re-entry / Justice-involved'},
+            {v:'residential',l:'Residential Treatment'},{v:'transitional',l:'Transitional Housing'},
+            {v:'discipleship',l:'Discipleship / Church-based'},{v:'youth',l:'Youth / Adolescent'}
+          ]}),
+          inp('Number of Campuses / Locations','campusCount',{type:'number',placeholder:'1'}),
+          inp('Estimated Active Members/Participants','estimatedMembers',{type:'number',placeholder:'0'})
+        )
+      )
+    ),
+
+    // Tier & Insurance
+    React.createElement('div',{className:'d-card',style:{marginBottom:'0.85rem'}},
+      React.createElement('div',{className:'d-card-head'},React.createElement('span',{className:'d-card-title'},'INSURANCE TIER & COVERAGE')),
+      React.createElement('div',{className:'d-card-body'},
+        inp('Program Tier','tier',{select:true,options:[
+          {v:'tier1',l:'Tier 1 — Weekly meetings / curriculum / peer support'},
+          {v:'tier2',l:'Tier 2 — Day program / transitional housing'},
+          {v:'tier3',l:'Tier 3 — Residential / clinical / court-referred'}
+        ]}),
+        React.createElement('div',{style:{padding:'0.75rem',background:'rgba(200,145,58,0.06)',border:'1px solid rgba(200,145,58,0.2)',borderRadius:6,marginTop:'0.5rem',fontSize:'0.78rem'}},
+          React.createElement('div',{style:{fontWeight:700,color:'var(--gold)',marginBottom:'0.25rem'}},TIERS[form.tier]&&TIERS[form.tier].label),
+          React.createElement('div',{style:{color:'var(--dmuted)',marginBottom:'0.25rem'}},TIERS[form.tier]&&TIERS[form.tier].desc),
+          React.createElement('div',null,React.createElement('span',{style:{color:'var(--dmuted)'}},'Required GL: '),React.createElement('strong',{style:{color:'var(--dtxt)'}},TIERS[form.tier]&&TIERS[form.tier].gl)),
+          TIERS[form.tier]&&TIERS[form.tier].prof!=='Not required' && React.createElement('div',null,
+            React.createElement('span',{style:{color:'var(--dmuted)'}},'Prof. Liability: '),React.createElement('strong',{style:{color:'var(--dtxt)'}},TIERS[form.tier].prof))
+        ),
+        React.createElement('div',{style:{marginTop:'0.75rem'}},
+          inp('Confirm minimum insurance coverage is in place *','insuranceConfirmed',{required:true,select:true,options:[
+            {v:'no',l:'Not yet confirmed'},
+            {v:'yes',l:'Yes — coverage meets or exceeds Tier requirements'}
+          ]})
+        )
+      )
+    ),
+
+    // Credential & Agreement
+    React.createElement('div',{className:'d-card',style:{marginBottom:'0.85rem'}},
+      React.createElement('div',{className:'d-card-head'},React.createElement('span',{className:'d-card-title'},'CREDENTIAL LEVEL & AGREEMENT')),
+      React.createElement('div',{className:'d-card-body'},
+        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem'}},
+          inp('Assigned Credential Level','credentialLevel',{select:true,options:[
+            {v:'L3',l:'L3 — Member / Participant (default)'},{v:'L4',l:'L4 — House Supervisor'},
+            {v:'L5',l:'L5 — Program Director'},{v:'L6',l:'L6 — Regional'}
+          ]}),
+          inp('Agreement Date','agreementDate',{type:'date'}),
+          inp('Signed By (Authorized Representative)','signedBy',{placeholder:'Full legal name'}),
+          inp('Title','signedTitle',{placeholder:'Executive Director, etc.'})
+        ),
+        React.createElement('div',{style:{marginTop:'0.75rem',padding:'0.75rem',background:'rgba(239,68,68,0.05)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:6,fontSize:'0.75rem',color:'var(--dmuted)',lineHeight:1.5}},
+          '⚠️ By submitting this application, the Sub-Operator agrees to the Exhibit B PWA Expansion Agreement v5 — a three-party agreement between Eagle Summit Ministries (ESM), Refined Recovery Network LLC (RRN), and the Sub-Operator. Fee structure: 10% ESM administrative fee + 5% RRN platform fee = 85% net to Sub-Operator. ESM is required additional insured on all policies. Attorney review recommended before execution.'
+        )
+      )
+    ),
+
+    React.createElement('div',{style:{display:'flex',gap:'0.75rem'}},
+      React.createElement('button',{onClick:submit,className:'btn-primary',style:{padding:'0.65rem 1.5rem',fontSize:'0.88rem',fontWeight:700}},'Submit Application'),
+      React.createElement('button',{onClick:function(){setView('list');},style:{padding:'0.65rem 1.1rem',borderRadius:8,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dmuted)',cursor:'pointer',fontSize:'0.82rem'}},'Cancel')
+    )
+  );
+}
 function GrantEngine({ platform, update, toast, session, setActive }) {
   var _s1=React.useState('dashboard'), view=_s1[0], setView=_s1[1];
   var _s2=React.useState(null), selGrant=_s2[0], setSelGrant=_s2[1];
@@ -29744,6 +29992,8 @@ function renderSection() {
         return React.createElement(TradePartnersPanel, {platform:platform,update:update,toast:toast,session:previewSession,setActive:setActiveSection});
       case 'grant-engine':
         return React.createElement(GrantEngine, {platform:platform,update:update,toast:toast,session:previewSession,setActive:setActiveSection});
+      case 'sub-operator-onboarding':
+        return React.createElement(SubOperatorOnboardingPanel, {platform:platform,update:update,toast:toast,session:previewSession,setActive:setActiveSection});
       case 'licensing-engine':
         return React.createElement(LicensingEnginePanel, {platform:platform,update:update,toast:toast,session:previewSession,setActive:setActiveSection});
       case 'grant-outcomes':
@@ -44186,7 +44436,7 @@ function QASwarmPanel({ platform, session, toast }) {
 
   function loadRepairs(){
     var repairs = [];
-    try{ repairs = JSON.parse(localStorage.getItem('caleb_repair_queue')||'[]'); }catch(e){}
+    try{ repairs = JSON.parse(localStorage.getItem('rrn_repairs')||'[]'); }catch(e){}
     var qaRepairs = repairs.filter(function(r){ return r.source&&r.source.indexOf('QA Swarm')>=0; });
     setRepairs(qaRepairs);
   }
@@ -48996,32 +49246,30 @@ function injectCurriculum() {
     var stored = JSON.parse(localStorage.getItem('rrn_platform') || '{}');
     var stepLessons = stored.stepLessons || {};
     var rebuilt = [];
+    var courseMap = {};
+    var KEY_TO_NUM = {preface:0,'0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'11':11,'12':12};
     Object.keys(stepLessons).forEach(function(stepKey) {
       var lessons = stepLessons[stepKey];
-      if (Array.isArray(lessons)) {
-        lessons.forEach(function(l) {
-          // Avoid duplicates by id
-          if (!rebuilt.find(function(r){ return r.id === l.id; })) {
-            rebuilt.push(l);
-          }
-        });
+      if (!Array.isArray(lessons)) return;
+      var numStr = stepKey.replace('step-','');
+      var stepNum = KEY_TO_NUM[numStr] !== undefined ? KEY_TO_NUM[numStr] : (parseInt(numStr)||1);
+      if (!courseMap[stepNum]) {
+        courseMap[stepNum] = { id:'step-'+stepNum, stepNum:stepNum, title:'Step '+stepNum+' — '+_rrnStepTitle(stepNum), lessons:[] };
       }
+      lessons.forEach(function(l) {
+        l.stepNum = stepNum;
+        if (!rebuilt.find(function(r){ return r.id === l.id; })) {
+          rebuilt.push(l);
+          courseMap[stepNum].lessons.push(l);
+        }
+      });
     });
     if (rebuilt.length > 0) {
       window.RRN_LESSONS = rebuilt;
       RRN_LESSONS = rebuilt;
-      // Also build RRN_COURSES from unique step numbers
-      var courseMap = {};
-      rebuilt.forEach(function(l) {
-        var step = l.stepNum || l.step || l.courseId || l.course || 1;
-        if(typeof step === 'string'){ var sm = step.match(/\d+/); step = sm ? parseInt(sm[0]) : 1; }
-        step = parseInt(step) || 1;
-        if (!courseMap[step]) {
-          courseMap[step] = { id: 'step-'+step, stepNum: step, title: 'Step '+step+' — '+_rrnStepTitle(step), lessons: [] };
-        }
-        courseMap[step].lessons.push(l);
-      });
-      var courses = Object.keys(courseMap).map(function(k){ return courseMap[k]; })
+      var courses = Object.keys(courseMap)
+        .map(function(k){ return courseMap[k]; })
+        .filter(function(c){ return c.lessons.length > 0; })
         .sort(function(a,b){ return a.stepNum - b.stepNum; });
       window.RRN_COURSES = courses;
       RRN_COURSES = courses;
@@ -50625,13 +50873,25 @@ function _selfHealCheck(){
   if(window._backendOnline && (!platform.meetings || platform.meetings.length === 0)){
     issues.push('meetings');
   }
-  // Check 4: Backend went offline
+  // Check 4: Backend offline — only log once per session on file://
   if(!window._backendOnline){
-    issues.push('backend-offline');
+    if(window.location.protocol === 'file:'){
+      // On file:// backend is always offline — expected, don't spam
+      if(!window._kalebOfflineLogged){
+        window._kalebOfflineLogged = true;
+        console.log('[KAYLEB] Local mode — backend offline expected on file://');
+      }
+      // Don't push to issues on file:// — nothing to heal
+    } else {
+      issues.push('backend-offline');
+    }
   }
 
   if(issues.length > 0){
-    console.log('[KAYLEB HEAL] Issues detected:', issues.join(', '));
+    if(!window._kalebLastIssues || window._kalebLastIssues !== issues.join(',')){
+      window._kalebLastIssues = issues.join(',');
+      console.log('[KAYLEB HEAL] Issues detected:', issues.join(', '));
+    }
     _attemptHeal(issues);
   }
 }
@@ -50762,875 +51022,265 @@ console.log('[KAYLEB] Active monitor running - watching platform, healing, engag
 // Reads real platform data and gives intelligent responses
 window._calebContextResponse = function(section, userQuery) {
   var ab = document.getElementById('caleb-answer-box');
-  if(ab){ab.style.display='';ab.textContent='...';}
-
   var platform = window._platform || {};
-  var dashData = window._dashData || {};
+  var mem = window.CalebMemory ? window.CalebMemory.getContext() : {};
+  var name = mem.name ? mem.name.split(' ')[0] : '';
+
+  // Caleb voice engine — Apostolic, direct, recovery-fluent
+  // Every response: ANCHOR → REALITY → DIRECTION → CLOSE (question or next step)
+  // Hard rules: no therapy-speak, no AA language, no Trinity, KJV only, max 3 sentences per beat
+  // Natural connectors: "Real talk." / "Here's the thing." / "Stay with it." / "The Word is clear."
 
   function speak(msg) {
-    if(ab){ab.style.display='';ab.textContent=msg;}
-    window._calebSpeak(msg);
+    if(ab){ ab.style.display=''; ab.innerHTML='<div style="font-size:0.72rem;color:#e2e8f0;line-height:1.6;padding:4px 0;">'+msg+'</div>'; }
+    window._calebSpeak(msg.replace(/<[^>]+>/g,''));
+    if(window.CalebMemory) window.CalebMemory.remember(userQuery||section, msg.replace(/<[^>]+>/g,'').slice(0,80), 'nav:'+section);
   }
 
-  function askOllama(prompt, context) {
-    var SYS = 'You are Kayleb, recovery AI for Refined Recovery Network. ' +
-      'You have real data about the platform. Give a 1-2 sentence response that: ' +
-      '1) summarizes the key info from the data, ' +
-      '2) asks ONE helpful follow-up question or suggests next action. ' +
-      'Warm, direct, KJV scripture when natural. No lists. No markdown.';
-    _apiFetch('/caleb',{
-      method:'POST',
-      body:JSON.stringify({
-        model:window.CALEB_MODEL||'qwen2.5:0.5b',
-        system:SYS,
-        prompt:'User navigated to: '+section+'. Data: '+context+'. User said: '+userQuery+'. Respond helpfully.',
-        stream:false,
-        options:{temperature:0.7,num_predict:80}
-      })
-    }).then(function(r){return r.json();})
-    .then(function(d){
-      var msg=(d.response||'').replace(/[{}[\x5d"]/g,'').trim();
-      if(msg) speak(msg);
-      else speak('You are all set. What would you like to do next?');
-    }).catch(function(e){
-  if(typeof handleApiError==='function') handleApiError(e,{module:'caleb',path:'/caleb',optional:true});
-      speak('I am here. What do you need?');
-    });
-  }
+  // Caleb response library — Apostolic tone, recovery-fluent, doctrine-locked
+  var responses = {
 
-  // Section-specific context builders
-  switch(section) {
+    'step-lessons': function() {
+      var progress = {};
+      try{ progress = JSON.parse(localStorage.getItem('rrn_curriculum_progress')||'{}'); }catch(e){}
+      var done = Object.values(progress).filter(function(v){return v.quizPassed;}).length;
+      var step = Math.min(Math.floor(done/4)+1, 12);
+      var lesson = (done%4)+1;
+      var pct = Math.round(done/52*100);
+      var stepNames = {1:'Honest Admission',2:'Restoration of Hope',3:'Decision and Surrender',
+        4:'Moral Inventory',5:'Confession',6:'Readiness for Change',7:'Humility and Asking',
+        8:'Accountability',9:'Making Amends',10:'Daily Inventory',11:'Prayer and Meditation',12:'Spiritual Service'};
+      var sname = stepNames[step]||'Step '+step;
+      if(done === 0) {
+        speak("This is where it starts. Step 1 — Honest Admission. The Word says in James 5:16, confess your faults one to another. That's not weakness. That's the first act of covenant. Open Lesson 1 and let's get into it. Ready?");
+      } else if(done >= 52) {
+        speak("You finished all 52 lessons. That is covenant faithfulness. He that endureth to the end shall be saved. Matthew 24:13. What are you carrying now that you want to go deeper on?");
+      } else {
+        speak("You are on Step "+step+" — "+sname+", Lesson "+lesson+" of 4. "+pct+"% complete. Real talk — every lesson you finish is ground you hold. Open Lesson "+lesson+" and stay in it. Want me to read it for you?");
+      }
+    },
 
-    case 'members': {
+    'recovery-journal': function() {
+      var entries = [];
+      try{ entries = JSON.parse(localStorage.getItem('rrn_journal')||'[]'); }catch(e){}
+      var days = entries.length > 0 ? Math.floor((Date.now()-new Date(entries[entries.length-1].date).getTime())/86400000) : 999;
+      if(entries.length === 0) {
+        speak("The journal is where honesty lives outside your head. Proverbs 4:23 says keep thy heart with all diligence. This is that. Write one thing you are carrying right now. Just one.");
+      } else if(days === 0) {
+        speak("You wrote today. Stay with it. What is on your heart right now that needs to get on paper?");
+      } else {
+        speak("Last entry was "+days+" day"+(days>1?'s':'')+' ago. Here\'s the thing — accountability does not work in your head. The journal is part of the covenant work. What happened in those '+days+" days that needs to come out?");
+      }
+    },
+
+    'prayer-requests': function() {
+      speak("The effectual fervent prayer of a righteous man availeth much. James 5:16 KJV. This is not a suggestion — it is a promise. Add what is on your heart. The body prays together. What do you need God to move on?");
+    },
+
+    'testimony': function() {
+      speak("They overcame by the blood of the Lamb and the word of their testimony. Revelation 12:11 KJV. Your story has power. Someone in this network needs to hear what God did for you. What victory would you like to share?");
+    },
+
+    'daily-checkin': function() {
+      var hr = new Date().getHours();
+      var tod = hr < 12 ? 'morning' : hr < 17 ? 'afternoon' : 'evening';
+      var greet = name ? 'Good '+tod+', '+name+'.' : 'Good '+tod+'.';
+      speak(greet+" Marking your attendance is part of the covenant commitment. It matters that you showed up. Let's log you in. You here for the meeting today?");
+    },
+
+    'meetings': function() {
+      var mtgs = platform.meetings || [];
+      var today = new Date().toLocaleDateString('en-US',{weekday:'long'}).toLowerCase().substr(0,3);
+      var todayMtg = mtgs.filter(function(m){ return (m.day||'').toLowerCase().indexOf(today)>=0; });
+      if(todayMtg.length > 0) {
+        var m = todayMtg[0];
+        speak("You have a meeting today — "+m.name+" at "+m.startTime+". Hebrews 10:25 says forsake not the assembling together. That is why this matters. Are you planning to attend?");
+      } else if(mtgs.length > 0) {
+        speak("No meeting scheduled today, but "+mtgs.length+" meeting"+(mtgs.length>1?'s are':' is')+" on the schedule. Check the calendar and find your next one. Isolation is the enemy of recovery. Stay connected.");
+      } else {
+        speak("No meetings are loaded yet. Talk to your pastor or accountability partner about getting connected to a group. Fellowship is not optional in this covenant.");
+      }
+    },
+
+    'members': function() {
       var members = platform.members || [];
       var active = members.filter(function(m){return m.status==='ACTIVE';}).length;
       var intake = members.filter(function(m){return m.status==='INTAKE';}).length;
-      var context = 'Total members: '+members.length+'. Active: '+active+'. In intake: '+intake+'.';
-      if(members.length > 0) {
-        var newest = members[0];
-        context += ' Most recent: '+newest.name+' at '+newest.campus+'.';
-      }
-      askOllama('members directory', context);
-      break;
-    }
-
-    case 'donations': {
-      var donations = platform.donations || [];
-      var total = donations.reduce(function(s,d){return s+(d.amount||0);},0);
-      var recurring = donations.filter(function(d){return d.type==='RECURRING';}).length;
-      var context = 'Total donations: $'+total.toLocaleString()+'. Count: '+donations.length+'. Recurring: '+recurring+'.';
-      if(donations.length > 0) {
-        var latest = donations[0];
-        context += ' Latest: $'+latest.amount+' from '+latest.donorName+'.';
-      }
-      askOllama('donations', context);
-      break;
-    }
-
-    case 'meetings': {
-      var meetings = platform.meetings || [];
-      var today = new Date().toLocaleDateString('en-US',{weekday:'long'});
-      var todayMtg = meetings.filter(function(m){
-        return m.day && m.day.toLowerCase().indexOf(today.toLowerCase().substr(0,3)) >= 0;
-      });
-      var context = 'Total meetings: '+meetings.length+'.';
-      if(todayMtg.length > 0) {
-        var m = todayMtg[0];
-        context += ' TODAY: '+m.name+' at '+m.startTime+' at '+m.location+'.';
-      } else if(meetings.length > 0) {
-        var next = meetings[0];
-        context += ' Next: '+next.name+' on '+next.day+' at '+next.startTime+'.';
-      }
-      askOllama('meetings', context);
-      break;
-    }
-
-    case 'housing': {
-      var housing = platform.housing || [];
-      var totalCap = housing.reduce(function(s,h){return s+(h.capacity||0);},0);
-      var context = 'Properties: '+housing.length+'. Total capacity: '+totalCap+' beds.';
-      askOllama('housing', context);
-      break;
-    }
-
-    case 'step-lessons':
-    case 'my-lessons': {
-      var progress = {};
-      try{progress=JSON.parse(localStorage.getItem('rrn_curriculum_progress')||'{}');}catch(e){}
-      var done = Object.values(progress).filter(function(v){return v.quizPassed;}).length;
-      var currentStep = Math.min(Math.floor(done/4)+1,12);
-      var lessonInStep = (done%4)+1;
-      var stepTitles={1:'Admitting Powerlessness',2:'A Power Greater Than Ourselves',
-        3:'Surrendering Our Will',4:'Moral Inventory',5:'Confession of Wrongs',
-        6:'Readiness for Change',7:'Asking for Removal',8:'Making Amends',
-        9:'Making Direct Amends',10:'Continued Inventory',11:'Prayer and Meditation',
-        12:'Carrying the Message'};
-      var pct=Math.round(done/52*100);
-      // Direct immediate guidance — don't wait for Ollama
-      var stepName='Step '+currentStep+' — '+stepTitles[currentStep];
-      var directMsg='You are on '+stepName+', Lesson '+lessonInStep+' of 4. '+
-        done+' of 52 lessons complete — '+pct+'%. '+
-        'Open '+stepName+' and click Lesson '+lessonInStep+' to continue. '+
-        'Would you like me to read the lesson aloud for you?';
-      var ab=document.getElementById('caleb-answer-box');
-      if(ab){ab.style.display='';ab.textContent=directMsg;}
-      window._calebSpeak(directMsg);
-      break;
-    }
-
-    case 'my-progress': {
-      var prog = {};
-      try{prog=JSON.parse(localStorage.getItem('rrn_curriculum_progress')||'{}');}catch(e){}
-      var completed = Object.values(prog).filter(function(v){return v.quizPassed;}).length;
-      var pct = Math.round(completed/52*100);
-      var context = 'Journey progress: '+pct+'% complete. '+completed+' of 52 lessons done.';
-      askOllama('progress', context);
-      break;
-    }
-
-    case 'recovery-journal': {
-      var entries = [];
-      try{entries=JSON.parse(localStorage.getItem('rrn_journal')||'[]');}catch(e){}
-      var context = 'Journal entries: '+entries.length+'.';
-      if(entries.length > 0) {
-        var last = entries[entries.length-1];
-        var days = Math.floor((Date.now()-new Date(last.date).getTime())/86400000);
-        context += ' Last entry: '+(days===0?'today':days+' days ago')+'.';
+      if(members.length === 0) {
+        speak("No members in the directory yet. That changes as people are onboarded. Who are you trying to find or add?");
       } else {
-        context += ' No entries yet.';
+        speak(members.length+" people in this network. "+active+" active, "+intake+" in intake. Real talk — every one of those numbers is a life. What do you need to do here?");
       }
-      askOllama('recovery journal', context);
-      break;
-    }
+    },
 
-    case 'overview': {
-      var dd = dashData;
-      var context = 'Members: '+(dd.members||0)+
-        '. Donations: $'+((dd.donations&&dd.donations.total)||0).toLocaleString()+
-        '. Meetings: '+(dd.meetings||0)+
-        '. Housing: '+(dd.housing||0)+'.';
-      askOllama('executive dashboard', context);
-      break;
-    }
+    'housing': function() {
+      var h = platform.housing || [];
+      var beds = h.reduce(function(s,p){return s+(p.capacity||0);},0);
+      var occ = h.reduce(function(s,p){return s+(p.occupied||0);},0);
+      var pct = beds > 0 ? Math.round(occ/beds*100) : 0;
+      speak("Housing is the foundation. "+occ+" of "+beds+" beds occupied — "+pct+"% capacity. Without a roof the work falls apart. Proverbs 24:3 says through wisdom is a house builded. What do you need to manage here?");
+    },
 
-    case 'pipeline-board': {
-      var allMem = platform.members || [];
-      var intakeCt = allMem.filter(function(m){return m.status==='INTAKE';}).length;
-      var activeCt = allMem.filter(function(m){return m.status==='ACTIVE';}).length;
-      var context = 'Pipeline: '+intakeCt+' in intake, '+activeCt+' active.';
-      askOllama('member pipeline', context);
-      break;
-    }
+    'workforce': function() {
+      var emp = platform.employers || [];
+      var cand = platform.workforceCandidates || [];
+      speak(cand.length+" workforce candidates, "+emp.length+" employer partner"+(emp.length!==1?'s':'')+" in the pipeline. A man who works builds more than income — he builds dignity. What do you need to move on today?");
+    },
 
-    case 'workforce': {
-      var employers = platform.employers || [];
-      var context = 'Employer partners: '+employers.length+'.';
-      askOllama('workforce', context);
-      break;
-    }
+    'grant-engine': function() {
+      var grants = platform.grantApplications || [];
+      var drafts = grants.filter(function(g){return g.status==='draft';}).length;
+      var due = grants.filter(function(g){
+        if(!g.deadline) return false;
+        return new Date(g.deadline) < new Date(Date.now()+7*864e5);
+      }).length;
+      if(due > 0) {
+        speak(due+" grant"+(due>1?'s':'')+' due this week. That is urgent — do not let the deadline pass. Open the builder and let\'s get it submitted. Which one do you want to work on?');
+      } else if(drafts > 0) {
+        speak(drafts+" grant draft"+(drafts>1?'s':'')+' in progress. Pick one and push it forward. Every dollar of grant funding is provision God sends through preparation. Which draft are you working on?');
+      } else {
+        speak("The grant catalog has opportunities waiting. Every grant application is a step toward sustainability. Browse the catalog and find what fits RRN's mission. Where would you like to start?");
+      }
+    },
 
-    case 'prayer-requests': {
-      speak("Opening prayer requests. The effectual fervent prayer of a righteous man availeth much. James 5:16 KJV. What would you like to pray about today?");
-      break;
-    }
+    'unified-finance': function() {
+      var h = _calebSystemHealth ? _calebSystemHealth() : {};
+      speak("Financial overview loaded. ESM fiscal fee is 10% of gross, RRN platform fee is 5% — your programs receive 85% net. Proverbs 21:5 says the plans of the diligent lead to profit. What do you need to review?");
+    },
 
-    case 'testimony': {
-      speak("Opening testimony. They overcame by the blood of the Lamb and the word of their testimony. Revelation 12:11 KJV. What victory would you like to share?");
-      break;
-    }
+    'overview': function() {
+      var h = window._calebSystemHealth ? window._calebSystemHealth() : {};
+      var msg = "System health is "+h.score+"%. ";
+      if(h.pendingRepairs > 0) msg += h.pendingRepairs+" repair"+(h.pendingRepairs>1?'s':'')+' pending. ';
+      if(h.critAlerts > 0) msg += h.critAlerts+' critical alert'+(h.critAlerts>1?'s':'')+'. ';
+      if(h.grantDue > 0) msg += h.grantDue+' grant'+(h.grantDue>1?'s':'')+' due this week. ';
+      msg += "What needs your attention first?";
+      speak(msg);
+    },
 
-    case 'daily-checkin': {
-      var today2 = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-      var _h=new Date().getHours();speak('Good '+(_h<12?'morning':'afternoon')+'. Today is '+today2+'. Ready to mark your attendance?');
-      break;
-    }
+    'my-progress': function() {
+      var prog = {};
+      try{ prog = JSON.parse(localStorage.getItem('rrn_curriculum_progress')||'{}'); }catch(e){}
+      var done = Object.values(prog).filter(function(v){return v.quizPassed;}).length;
+      var pct = Math.round(done/52*100);
+      var streak = mem.streak || 0;
+      if(done === 0) {
+        speak("Every journey starts at zero. The work starts when you open the first lesson. He that began a good work in you will perform it. Philippians 1:6. Let's get started — go to Step 1.");
+      } else {
+        speak(done+" of 52 lessons complete. "+pct+"%. "+(streak>1?'Day '+streak+' streak. ':'')+' That\'s the work. Keep the consistency — it compounds. What step are you on right now?');
+      }
+    },
 
-    case 'grant-engine': {
-      var grants = platform.grants || [];
-      var context = 'Active grants: '+grants.length+'.';
-      askOllama('grant engine', context);
-      break;
-    }
+    'victories': function() {
+      var vics = [];
+      try{ vics = JSON.parse(localStorage.getItem('rrn_platform')||'{}').victories||[]; }catch(e){}
+      if(vics.length === 0) {
+        speak("This is where you record what God has done. Every victory logged is a testimony. Revelation 12:11 — overcome by the word of your testimony. Log your first one right now. What has God done for you?");
+      } else {
+        speak(vics.length+" victor"+(vics.length>1?'ies':'y')+" logged. Real talk — that is evidence of God's faithfulness. Keep building the record. What happened recently that deserves to be on here?");
+      }
+    },
 
-    case 'unified-finance': {
-      var dd2 = dashData;
-      var context = 'Donations: $'+((dd2.donations&&dd2.donations.total)||0).toLocaleString()+'. Grants: $'+((dd2.grants&&dd2.grants.total)||0).toLocaleString()+'.';
-      askOllama('financial overview', context);
-      break;
-    }
+    'qa-swarm': function() {
+      var repairs = [];
+      try{ repairs = JSON.parse(localStorage.getItem('rrn_repairs')||'[]'); }catch(e){}
+      var pending = repairs.filter(function(r){return r.status==='pending';}).length;
+      speak(pending+" repair item"+(pending!==1?'s':'')+' in the queue. The self-heal engine is running. What\'s broken that needs attention right now?');
+    },
 
+    'alerts': function() {
+      speak("Alerts panel open. Check anything marked critical first — those need immediate action. What are you seeing that needs to be addressed?");
+    },
 
-    // -- RECOVERY PANELS ------------------------------------------
-    case 'trigger-tracking': {
-      var trigs=[];try{trigs=JSON.parse(localStorage.getItem('rrn_triggers')||'[]');}catch(e){}
-      var high=trigs.filter(function(t){return t.level==='high';}).length;
-      askOllama('trigger tracking','Triggers logged: '+trigs.length+'. High intensity: '+high+'. Last 7 days active.');
-      break;
-    }
-    case 'relapse-prevention': {
-      askOllama('relapse prevention','Member viewing relapse prevention plan. Encourage review of coping strategies.');
-      break;
-    }
-    case 'trauma-recovery': {
-      askOllama('trauma recovery','Member accessing trauma recovery resources. Be sensitive and supportive.');
-      break;
-    }
-    case 'crisis': {
-      speak('I am here with you. If you are in crisis, please contact your mentor immediately. The Lord is your refuge. Psalm 46:1 KJV. Who can I connect you with right now?');
-      break;
-    }
-    case 'sponsor-chat': {
-      var mem2=platform.members||[];
-      askOllama('mentor chat','Member accessing mentor chat. Total mentors available: '+mem2.filter(function(m){return m.level<=4;}).length+'. Encourage connection.');
-      break;
-    }
-    case 'steps-track': {
-      var prog2={};try{prog2=JSON.parse(localStorage.getItem('rrn_curriculum_progress')||'{}');}catch(e){}
-      var done2=Object.values(prog2).filter(function(v){return v.quizPassed;}).length;
-      var step2=Math.min(Math.floor(done2/4)+1,12);
-      askOllama('steps tracker','On Step '+step2+'. Completed '+done2+' of 52 lessons. '+Math.round(done2/52*100)+'% complete.');
-      break;
-    }
-    case 'my-walk': {
-      askOllama('spiritual walk','Member reviewing their spiritual walk and recovery journey. Encourage consistency.');
-      break;
-    }
-    case 'devotional':
-    case 'prayer-devotion': {
-      speak('Opening devotional time. "Draw nigh to God, and he will draw nigh to you." James 4:8 KJV. What scripture would you like to study today?');
-      break;
-    }
-    case 'biblical-foundations': {
-      speak('Opening Biblical Foundations. "Study to shew thyself approved unto God." 2 Timothy 2:15 KJV. Which foundation topic would you like to study?');
-      break;
-    }
-    case 'recovery-foundations': {
-      askOllama('recovery foundations','Member reviewing core recovery foundations. Encourage consistent application.');
-      break;
-    }
-    case 'accountability-train': {
-      var jnl2=[];try{jnl2=JSON.parse(localStorage.getItem('rrn_journal')||'[]');}catch(e){}
-      var daysSince=jnl2.length>0?Math.floor((Date.now()-new Date(jnl2[jnl2.length-1].date).getTime())/86400000):999;
-      askOllama('accountability','Journal entries: '+jnl2.length+'. Last entry: '+(daysSince===0?'today':daysSince+' days ago')+'. Encourage daily journaling.');
-      break;
-    }
-    case 'growth-profile': {
-      var prog3={};try{prog3=JSON.parse(localStorage.getItem('rrn_curriculum_progress')||'{}');}catch(e){}
-      var done3=Object.values(prog3).filter(function(v){return v.quizPassed;}).length;
-      askOllama('growth profile','Member growth: '+done3+' lessons complete. Encourage continued growth and celebrate victories.');
-      break;
-    }
+    'campuses': function() {
+      var camps = platform.campuses || [];
+      speak(camps.length+" campus"+(camps.length!==1?'es':'')+' in the network. Each one is a covenant outpost. Where is God opening a door for expansion?');
+    },
 
-    // -- COMMUNICATION PANELS --------------------------------------
-    case 'announcements': {
-      askOllama('announcements','Member viewing announcements. Encourage engagement with ministry news and events.');
-      break;
-    }
-    case 'community-wall': {
-      var memCt=platform.members?platform.members.length:0;
-      askOllama('community wall','Community of '+memCt+' members. Encourage positive engagement and support.');
-      break;
-    }
-    case 'alerts':
-    case 'behavioral-alerts': {
-      askOllama('alerts','Staff viewing alerts. Review any urgent member needs or behavioral flags requiring attention.');
-      break;
-    }
-    case 'my-notifications':
-    case 'notifications': {
-      askOllama('notifications','Member viewing notifications. Check for mentor messages, meeting reminders, and lesson updates.');
-      break;
-    }
-    case 'my-calendar': {
-      var mtgs2=platform.meetings||[];
-      var today3=new Date().toLocaleDateString('en-US',{weekday:'long'});
-      var todayMtg2=mtgs2.filter(function(m){return m.day&&m.day.toLowerCase().indexOf(today3.toLowerCase().substr(0,3))>=0;});
-      askOllama('calendar','Today is '+today3+'. Meetings today: '+todayMtg2.length+'. Total scheduled: '+mtgs2.length+'. Help plan their week.');
-      break;
-    }
-    case 'community':
-    case 'community-resources': {
-      askOllama('community resources','Member accessing community resources. Connect them with food, housing, legal, and health services.');
-      break;
-    }
-    case 'live-session':
-    case 'video-sessions':
-    case 'video-conference': {
-      askOllama('live session','Member accessing live or video session. Help them prepare and connect for the meeting.');
-      break;
-    }
-    case 'guest-meetings': {
-      var mtgs3=platform.meetings||[];
-      var ctx3='Available meetings: '+mtgs3.length+'.';
-      if(mtgs3.length>0){ctx3+=' Next: '+mtgs3[0].name+' on '+mtgs3[0].day+' at '+mtgs3[0].startTime+'.';}
-      askOllama('guest meetings',ctx3);
-      break;
-    }
+    'scheduler': function() {
+      speak("Schedule panel open. A life without structure invites chaos — that is not opinion, that is pattern. What needs to be on the calendar this week?");
+    },
 
-    // -- ADMIN / MANAGEMENT PANELS ---------------------------------
-    case 'pipeline-board':
-    case 'pipeline': {
-      var allM=platform.members||[];
-      var iCt=allM.filter(function(m){return m.status==='INTAKE';}).length;
-      var aCt=allM.filter(function(m){return m.status==='ACTIVE';}).length;
-      askOllama('pipeline board','Pipeline: '+iCt+' intake, '+aCt+' active. Total: '+allM.length+'. Who needs attention today?');
-      break;
-    }
-    case 'campuses': {
-      askOllama('campuses','Three active campuses: Port Allen, Pineville, LaPlace. Total members: '+(platform.members?platform.members.length:0)+'. Which campus needs focus?');
-      break;
-    }
-    case 'unified-finance': {
-      var dd3=dashData;
-      askOllama('finance','Donations: $'+((dd3.donations&&dd3.donations.total)||0).toLocaleString()+'. Grants: $'+((dd3.grants&&dd3.grants.total)||0).toLocaleString()+'. Review financial health.');
-      break;
-    }
-    case 'grant-engine': {
-      var grnts=platform.grants||[];
-      askOllama('grants','Active grants: '+grnts.length+'. Total value: $'+grnts.reduce(function(s,g){return s+(g.amount||0);},0).toLocaleString()+'. Review grant opportunities.');
-      break;
-    }
-    case 'warroom': {
-      var dd4=dashData;
-      askOllama('executive war room','Members: '+(dd4.members||0)+'. Donations: $'+((dd4.donations&&dd4.donations.total)||0).toLocaleString()+'. What strategic decision needs attention?');
-      break;
-    }
-    case 'employer-portal':
-    case 'employer-profile':
-    case 'employer-hired':
-    case 'employer-positions':
-    case 'employer-referrals': {
-      var emps=platform.employers||[];
-      askOllama('employer portal','Employer partners: '+emps.length+'. Help connect qualified candidates with job opportunities.');
-      break;
-    }
-    case 'workforce-certs':
-    case 'certification-center': {
-      askOllama('certifications','Member accessing certification center. CDL, OSHA, GED, Forklift available. Which certification are they pursuing?');
-      break;
-    }
-    case 'ai-resume-builder': {
-      var mem3=platform.members||[];
-      askOllama('resume builder','Member building resume. '+mem3.length+' members in system. Help craft a strong professional profile.');
-      break;
-    }
-    case 'interview-prep': {
-      askOllama('interview prep','Member preparing for job interview. Guide them through common questions and confidence building.');
-      break;
-    }
-    case 'workforce-signal': {
-      askOllama('workforce signal','Reviewing workforce readiness signals. Identify members ready for job placement.');
-      break;
-    }
-    case 'wf-placement': {
-      var emps2=platform.employers||[];
-      var mems2=platform.members||[];
-      askOllama('workforce placement',mems2.filter(function(m){return m.status==='ACTIVE';}).length+' active members ready. '+emps2.length+' employer partners. Match candidates to opportunities.');
-      break;
-    }
+    'pipeline-board': function() {
+      var members = platform.members || [];
+      var intake = members.filter(function(m){return m.status==='INTAKE';}).length;
+      speak(intake+" in intake right now. Every one of them is at the most critical window. Real talk — what happens in the first 30 days determines a lot. Who needs attention today?");
+    },
 
-    // -- HOUSING PANELS --------------------------------------------
-    case 'residents': {
-      var hs=platform.housing||[];
-      var totalBeds=hs.reduce(function(s,h){return s+(h.capacity||0);},0);
-      askOllama('residents','Housing properties: '+hs.length+'. Total capacity: '+totalBeds+' beds. Review current residents and available beds.');
-      break;
-    }
-    case 'housing-readiness': {
-      askOllama('housing readiness','Assessing member housing readiness. Review stability, employment, and program completion status.');
-      break;
-    }
-    case 'vacancy': {
-      var hs2=platform.housing||[];
-      askOllama('vacancy','Properties: '+hs2.length+'. Review available beds and match members needing transitional housing.');
-      break;
-    }
-    case 'reentry-support': {
-      askOllama('reentry support','Member accessing reentry support. Help navigate housing, employment, legal, and family restoration services.');
-      break;
-    }
-    case 'family-restoration': {
-      speak('Opening family restoration. "Behold, I will send you Elijah the prophet...he shall turn the heart of the fathers to the children." Malachi 4:5-6 KJV. How can I help restore this family today?');
-      break;
-    }
-    case 'services-food':
-    case 'services-health':
-    case 'services-legal':
-    case 'services-state':
-    case 'services-transport': {
-      askOllama('community services','Member accessing community services. Connect them with available local resources for immediate needs.');
-      break;
-    }
+    'community-wall': function() {
+      speak("Community wall open. Iron sharpeneth iron — Proverbs 27:17. This is where the network encourages itself. What do you want to post or respond to today?");
+    },
 
-    // -- WORKFORCE TRAINING ----------------------------------------
-    case 'ged-prep': {
-      askOllama('GED prep','Member preparing for GED. Encourage consistency. "Wisdom is the principal thing; therefore get wisdom." Proverbs 4:7 KJV.');
-      break;
-    }
-    case 'cdl-prep': {
-      askOllama('CDL preparation','Member pursuing CDL license. High earning potential. Connect with training schedule and next steps.');
-      break;
-    }
-    case 'osha-certifications':
-    case 'osha-readiness': {
-      askOllama('OSHA certification','Member pursuing OSHA safety certification. Review training requirements and exam schedule.');
-      break;
-    }
-    case 'forklift-prep': {
-      askOllama('forklift certification','Member pursuing forklift certification. Connect with local training providers and exam schedule.');
-      break;
-    }
-    case 'resume-writing': {
-      askOllama('resume writing','Member working on resume. Help highlight transferable skills, recovery journey strengths, and work history.');
-      break;
-    }
-    case 'computer-literacy': {
-      askOllama('computer literacy','Member building computer skills. Essential for modern workforce. What skills do they need most?');
-      break;
-    }
-    case 'financial-literacy': {
-      askOllama('financial literacy','Member learning financial management. Budgeting, banking, credit restoration. Where do they need most help?');
-      break;
-    }
-    case 'parenting-skills': {
-      speak('Opening parenting skills. "Train up a child in the way he should go." Proverbs 22:6 KJV. What parenting challenge can we work through today?');
-      break;
-    }
-    case 'defensive-driving': {
-      askOllama('defensive driving','Member pursuing defensive driving certification. Review schedule and connect with training resources.');
-      break;
-    }
-    case 'industrial-safety': {
-      askOllama('industrial safety','Member pursuing industrial safety training. Connect with available certifications and employer requirements.');
-      break;
-    }
+    'sponsor-chat': function() {
+      speak("Accountability partner chat open. The Word says in the multitude of counsellors there is safety. Proverbs 11:14. Who do you need to connect with right now?");
+    },
 
-    // -- FINANCE PANELS --------------------------------------------
-    case 'financial-requests': {
-      askOllama('financial requests','Member submitted financial request. Review need, available funds, and appropriate assistance.');
-      break;
-    }
-    case 'funding': {
-      var grnts2=platform.grants||[];
-      askOllama('funding sources','Active grants: '+grnts2.length+'. Review all funding streams and identify new opportunities.');
-      break;
-    }
-    case 'tax': {
-      askOllama('tax records','Reviewing tax documentation. Ensure all ministry transactions are properly recorded for compliance.');
-      break;
-    }
-    case 'biz-accounting':
-    case 'biz-billing':
-    case 'biz-invoices': {
-      askOllama('business accounting','Reviewing business financial records. Ensure accurate tracking of all ministry income and expenses.');
-      break;
-    }
-    case 'forecast': {
-      var dd5=dashData;
-      askOllama('financial forecast','Current donations: $'+((dd5.donations&&dd5.donations.total)||0).toLocaleString()+'. Project growth based on current trends and grant pipeline.');
-      break;
-    }
+    'crisis': function() {
+      speak("I am here with you right now. The LORD is a refuge in time of trouble. Nahum 1:7 KJV. You are not alone in this. Tell me what is happening — or reach out to your pastor right now. Who can I help you contact?");
+    },
 
-    // -- PROGRAMS & INITIATIVES -------------------------------------
-    case 'programs': {
-      var memCt2=platform.members?platform.members.length:0;
-      askOllama('programs','Active programs serving '+memCt2+' members. Review program effectiveness and enrollment.');
-      break;
-    }
-    case 'cohorts': {
-      askOllama('cohorts','Review member cohorts by start date and step progress. Identify who needs acceleration or support.');
-      break;
-    }
-    case 'church-groups': {
-      speak('Opening church groups. "Not forsaking the assembling of ourselves together." Hebrews 10:25 KJV. Which group would you like to review or build?');
-      break;
-    }
-    case 'events-builder': {
-      var mtgs4=platform.meetings||[];
-      askOllama('events','Current meetings: '+mtgs4.length+'. Build new events to expand community engagement and outreach.');
-      break;
-    }
-    case 'campaigns': {
-      askOllama('outreach campaigns','Review active outreach campaigns. Identify which communities have the greatest need for ministry.');
-      break;
-    }
-    case 'content-builder': {
-      askOllama('content builder','Create ministry content for web, social media, and community outreach. What message needs to go out?');
-      break;
-    }
-    case 'blog': {
-      askOllama('ministry blog','Share the testimony of transformation. What story of redemption should be featured today?');
-      break;
-    }
-    case 'pitch-builder': {
-      var grnts3=platform.grants||[];
-      askOllama('pitch builder','Building grant pitch. Active grants: '+grnts3.length+'. What funding opportunity are we pursuing?');
-      break;
-    }
-    case 'volunteer-ops': {
-      askOllama('volunteer operations','Managing volunteer operations. Recruit, schedule, and deploy volunteers for maximum ministry impact.');
-      break;
-    }
-    case 'evangelism-training': {
-      speak('Opening evangelism training. "Go ye into all the world, and preach the gospel." Mark 16:15 KJV. How can we equip our members to share their testimony?');
-      break;
-    }
+    'trigger-tracking': function() {
+      speak("Trigger log open. Knowing what hits you is not weakness — it is strategy. Proverbs 4:7 says get wisdom. What triggered you recently that you need to put on here?");
+    },
 
-    // -- COMPLIANCE & SECURITY -------------------------------------
-    case 'audit': {
-      askOllama('audit trail','Reviewing compliance audit log. All member actions, financial transactions, and system changes recorded.');
-      break;
-    }
-    case 'incidents': {
-      askOllama('incident reports','Reviewing incident reports. Address any safety, behavioral, or compliance issues promptly.');
-      break;
-    }
-    case 'drug-tests': {
-      askOllama('drug tests','Reviewing drug test records. Ensure accountability and support for members in recovery.');
-      break;
-    }
-    case 'court-documentation': {
-      askOllama('court documentation','Managing court-required documentation. Ensure all legal requirements are met accurately and on time.');
-      break;
-    }
-    case 'identity-verify': {
-      askOllama('identity verification','Verifying member identity. Ensure accurate records for compliance and service delivery.');
-      break;
-    }
-    case 'vault': {
-      askOllama('secure vault','Accessing secure document vault. All records encrypted and access-controlled by authorization level.');
-      break;
-    }
-    case 'assurance': {
-      askOllama('quality assurance','Reviewing quality assurance metrics. Measure program effectiveness and member outcomes.');
-      break;
-    }
-    case 'system-activity': {
-      askOllama('system activity','Reviewing platform activity log. Monitor usage patterns and identify areas needing attention.');
-      break;
-    }
-    case 'module-control': {
-      askOllama('module control','Managing platform feature toggles. Enable or disable modules based on campus needs and user levels.');
-      break;
-    }
-    case 'site-configs':
-    case 'site-content': {
-      askOllama('site configuration','Managing platform configuration and content. Ensure all settings match ministry requirements.');
-      break;
-    }
-    case 'automation': {
-      askOllama('automation','Reviewing automated workflows. Streamline repetitive tasks to free staff for direct ministry.');
-      break;
-    }
-    case 'contact-config':
-    case 'contact-routing': {
-      askOllama('contact routing','Managing communication routing. Ensure messages reach the right person at the right time.');
-      break;
-    }
+    'relapse-prevention': function() {
+      speak("Relapse prevention plan open. The enemy does not quit. Neither do we. 1 Corinthians 10:13 — God will not suffer you to be tempted above what you are able. What strategy do you need to strengthen right now?");
+    },
 
-    // -- REPORTING & ANALYTICS -------------------------------------
-    case 'analytics': {
-      var dd6=dashData;
-      askOllama('analytics','Members: '+(dd6.members||0)+'. Donations: $'+((dd6.donations&&dd6.donations.total)||0).toLocaleString()+'. Meetings: '+(dd6.meetings||0)+'. What metrics need attention?');
-      break;
-    }
-    case 'weekly-report': {
-      var dd7=dashData;
-      askOllama('weekly report','This week: '+dd7.members+' members, $'+((dd7.donations&&dd7.donations.total)||0).toLocaleString()+' in donations. Generate comprehensive weekly summary.');
-      break;
-    }
-    case 'program-outcomes': {
-      var prog4={};try{prog4=JSON.parse(localStorage.getItem('rrn_curriculum_progress')||'{}');}catch(e){}
-      var done4=Object.values(prog4).filter(function(v){return v.quizPassed;}).length;
-      askOllama('program outcomes','Curriculum completions: '+done4+'. Member retention and graduation rates. Measure transformation impact.');
-      break;
-    }
-    case 'outcomes': {
-      askOllama('outcomes','Review all program outcomes across housing, workforce, recovery, and family restoration. Measure total impact.');
-      break;
-    }
-    case 'velocity': {
-      var memV=platform.members||[];
-      askOllama('growth velocity','Members: '+memV.length+'. Track growth rate, retention, and graduation velocity across all campuses.');
-      break;
-    }
-    case 'timeline': {
-      askOllama('timeline','Reviewing member and program timeline. Track key milestones, events, and transformation journey.');
-      break;
-    }
-    case 'simulation': {
-      askOllama('simulation','Running outcome simulation. Project impact of current programs on 6 and 12 month member outcomes.');
-      break;
-    }
-    case 'reputation': {
-      askOllama('reputation','Reviewing platform and ministry reputation metrics. Employer feedback, community impact, and member testimonies.');
-      break;
-    }
+    'my-calendar': function() {
+      speak("Calendar open. Structure is not legalism — it is stewardship of time. What needs to be on your schedule this week that is not there yet?");
+    },
 
-    // -- PERSONNEL -------------------------------------------------
-    case 'personnel':
-    case 'leadership': {
-      askOllama('leadership','Reviewing leadership team. Identify training needs, role assignments, and succession planning.');
-      break;
-    }
-    case 'leadership-dev-min': {
-      speak('Opening leadership development. "And the things that thou hast heard of me...the same commit thou to faithful men." 2 Timothy 2:2 KJV. Who is ready for the next level of responsibility?');
-      break;
-    }
-    case 'mentor-match': {
-      var mems3=platform.members||[];
-      var needsMentor=mems3.filter(function(m){return m.status==='INTAKE';}).length;
-      askOllama('mentor matching',needsMentor+' intake members need mentors assigned. Match by campus, background, and availability.');
-      break;
-    }
-    case 'scheduler': {
-      var mtgs5=platform.meetings||[];
-      askOllama('scheduler','Managing schedule for '+mtgs5.length+' meetings plus staff assignments. Optimize for maximum coverage and impact.');
-      break;
-    }
-    case 'walk-admin': {
-      askOllama('recovery walk admin','Managing recovery walk program. Track member participation and spiritual development milestones.');
-      break;
-    }
+    'devotional': function() {
+      speak("Draw nigh to God and he will draw nigh to you. James 4:8 KJV. Devotional time is not optional in covenant — it is where the power stays full. What scripture are you sitting with today?");
+    },
 
-    // -- CASE MANAGEMENT ------------------------------------------
-    case 'case-notes': {
-      var allMem2=platform.members||[];
-      askOllama('case notes','Managing case notes for '+allMem2.length+' members. Which member needs case review today?');
-      break;
-    }
-    case 'intervention': {
-      speak('Opening intervention tools. Act quickly and with compassion. "Brethren, if a man be overtaken in a fault, ye which are spiritual, restore such an one in the spirit of meekness." Galatians 6:1 KJV. Who needs intervention?');
-      break;
-    }
-    case 'behavior': {
-      askOllama('behavior tracking','Reviewing member behavioral data. Identify patterns, triggers, and intervention opportunities.');
-      break;
-    }
-    case 'session-tools': {
-      askOllama('session tools','Preparing meeting facilitation tools. Set agenda, discussion points, and follow-up actions.');
-      break;
-    }
-    case 'candidate-queue': {
-      var mems4=platform.members||[];
-      var ready=mems4.filter(function(m){return m.status==='ACTIVE'&&(m.stepNum||1)>=6;}).length;
-      askOllama('candidate queue',ready+' members potentially ready for job placement. Review qualifications and match to opportunities.');
-      break;
-    }
-    case 'match': {
-      var emps3=platform.employers||[];
-      var mems5=platform.members||[];
-      askOllama('job matching',mems5.length+' members, '+emps3.length+' employers. Identify optimal candidate-employer matches based on skills and location.');
-      break;
-    }
+    'biblical-foundations': function() {
+      speak("Study to shew thyself approved unto God, a workman that needeth not to be ashamed, rightly dividing the word of truth. 2 Timothy 2:15 KJV. Which foundation are you working through?");
+    },
 
-    // -- GUEST PANELS ---------------------------------------------
-    case 'guest-info': {
-      speak('Welcome to Refined Recovery Network. We believe in the transforming power of Jesus Christ. Acts 2:38 KJV. Would you like to learn about our program, find a meeting, or speak with someone today?');
-      break;
-    }
-    case 'guest-location': {
-      speak('We have three locations in Louisiana: Port Allen on Highway 190, Pineville, and LaPlace. Which campus is nearest to you?');
-      break;
-    }
-    case 'guest-video': {
-      speak('Opening our ministry videos. See real transformation stories from our members. Which would you like to watch first?');
-      break;
-    }
-    case 'guest-signup': {
-      speak('Welcome. Taking the first step is the hardest, and you have already done it. Let me help you get started. What is your name and which campus is closest to you?');
-      break;
-    }
-    case 'guest-donate':
-    case 'guest-impact': {
-      var dd8=dashData;
-      speak('Your giving transforms lives. We have served '+(dd8.members||0)+' members across three campuses. Every gift goes directly to recovery, housing, and workforce restoration. How would you like to give today?');
-      break;
-    }
-    case 'guest-careers': {
-      askOllama('guest careers','Guest exploring career opportunities through ministry. Connect with workforce training and employer partners.');
-      break;
-    }
-    case 'guest-mentor': {
-      speak('Our mentors have walked this road themselves. They understand. Would you like to be connected with a mentor today?');
-      break;
-    }
-    case 'guest-guide':
-    case 'guest-recovery':
-    case 'guest-journal':
-    case 'guest-learning': {
-      speak('Welcome to the Refined Recovery learning center. Start wherever you are. God meets you there. What topic would you like to explore first?');
-      break;
-    }
+    'announcements': function() {
+      speak("Announcements open. Stay connected to what is happening in the ministry. What do you need to know about?");
+    },
 
-    // -- TRADE PROGRAMS --------------------------------------------
-    case 'carpentry-fund':
-    case 'electrical-fund':
-    case 'hvac-fund':
-    case 'plumbing-basics':
-    case 'welding-fund':
-    case 'refinery-basics':
-    case 'warehouse-ops': {
-      var tradeName=section.replace(/-/g,' ').replace(/\w/g,function(l){return l.toUpperCase();});
-      askOllama(tradeName,'Member pursuing '+tradeName+' training. Connect with certification requirements, equipment, and job placement partners.');
-      break;
-    }
+    'ai-resume-builder': function() {
+      speak("Resume builder open. This is part of the restoration — not just spirit but life. Proverbs 22:29 says a skilled man will stand before kings. Let's build something that opens doors. Where are you in the process?");
+    },
 
-    // -- PROPERTY & ASSETS -----------------------------------------
-    case 'property-db':
-    case 'property-partners': {
-      askOllama('property management','Managing property database and partner relationships. Review maintenance, occupancy, and expansion opportunities.');
-      break;
-    }
-    case 'territories': {
-      askOllama('territories','Reviewing geographic coverage areas. Identify underserved communities for ministry expansion.');
-      break;
-    }
-    case 'house-rhythm': {
-      askOllama('house rhythm','Managing daily house schedule and routines. Consistent structure is foundational to recovery success.');
-      break;
-    }
-    case 'house-mother': {
-      askOllama('house mother','House mother dashboard. Monitor resident wellbeing, daily routines, and house operations.');
-      break;
-    }
+    'my-path': function() {
+      speak("Your recovery path is your covenant map. Every step is ground taken back from where you were. Where are you right now and where is the next marker?");
+    },
 
-    // -- MEMBER PROFILE --------------------------------------------
-    case 'my-profile': {
-      var s2=window._rrnAutoSession||{};
-      speak('Viewing profile for '+(s2.name||'member')+'. Keep your information current so your mentor and staff can serve you well. Would you like to update anything?');
-      break;
-    }
-    case 'honor': {
-      speak('Opening honor board. "Honour thy father and thy mother." Exodus 20:12 KJV. Celebrate members who have shown exceptional commitment to their recovery journey.');
-      break;
-    }
-    case 'victories': {
-      speak('Opening victories. Every step forward is a victory. "I can do all things through Christ which strengtheneth me." Philippians 4:13 KJV. What victory would you like to celebrate today?');
-      break;
-    }
-    case 'graduation': {
-      var prog5={};try{prog5=JSON.parse(localStorage.getItem('rrn_curriculum_progress')||'{}');}catch(e){}
-      var done5=Object.values(prog5).filter(function(v){return v.quizPassed;}).length;
-      var pct2=Math.round(done5/52*100);
-      askOllama('graduation',pct2+'% of curriculum complete. '+done5+' of 52 lessons done. Review graduation requirements and timeline.');
-      break;
-    }
+    'qr-scanner': function() {
+      speak("QR scanner ready. Mark your attendance when you walk in. Showing up is covenant faithfulness. Scan when you are ready.");
+    },
+    'sub-operator-onboarding': function() {
+      var ops = [];
+      try{ ops = JSON.parse(localStorage.getItem('rrn_sub_operators')||'[]'); }catch(e){}
+      var active = ops.filter(function(o){return o.status==='active';}).length;
+      var pending = ops.filter(function(o){return o.status==='pending-review';}).length;
+      if(ops.length === 0) {
+        speak("Sub-operator onboarding open. This is how RRN scales. Every ministry you bring in becomes part of the network — under the Exhibit B agreement. Ten percent to ESM, five percent to RRN, eighty-five percent stays with them. Who is the first ministry you want to onboard?");
+      } else {
+        speak(ops.length+" sub-operator"+(ops.length!==1?'s':'')+' in the system. '+active+' active, '+pending+' pending review. Every one of them is an outpost of this covenant. What do you need to manage here?');
+      }
+    },
+  };
 
-    // -- SETTINGS & SYSTEM -----------------------------------------
-    case 'settings': {
-      askOllama('settings','Reviewing platform settings. Ensure configuration matches current campus needs and ministry requirements.');
-      break;
-    }
-    case 'queue': {
-      askOllama('processing queue','Review items in processing queue. Address pending approvals, reviews, and action items.');
-      break;
-    }
-    case 'log': {
-      askOllama('system log','Reviewing system activity log. Monitor for issues, unusual patterns, and compliance requirements.');
-      break;
-    }
-    case 'improvements': {
-      askOllama('improvements','Reviewing platform improvement suggestions. What would make the biggest impact for members and staff?');
-      break;
-    }
-    case 'register': {
-      speak('Opening registration. Let us get this new member set up in the system. What campus are they joining?');
-      break;
-    }
-    case 'active': {
-      var actM=platform.members?platform.members.filter(function(m){return m.status==='ACTIVE';}).length:0;
-      askOllama('active members',actM+' currently active members across all campuses. Review engagement and identify who needs support.');
-      break;
-    }
-
-    // -- AI PANELS -------------------------------------------------
-    case 'ai-guidance': {
-      askOllama('AI guidance','Providing AI-powered guidance for member recovery journey. Personalize recommendations based on progress and needs.');
-      break;
-    }
-    case 'ai-treatment': {
-      askOllama('AI treatment','AI-assisted treatment planning. Analyze member history and recommend evidence-based recovery interventions.');
-      break;
-    }
-    case 'ai-comms': {
-      askOllama('AI communications','Managing AI-powered communications. Personalize outreach, follow-ups, and encouragement messages.');
-      break;
-    }
-
-    // -- BUSINESS PANELS ------------------------------------------
-    case 'biz-grants':
-    case 'biz-clients':
-    case 'biz-contract':
-    case 'biz-leads':
-    case 'biz-revshare':
-    case 'biz-whitelist':
-    case 'biz-deployment':
-    case 'biz-terminology':
-    case 'biz-qr': {
-      var bizName=section.replace('biz-','').replace(/-/g,' ').replace(/\w/g,function(l){return l.toUpperCase();});
-      askOllama('business '+bizName,'Managing platform business operations: '+bizName+'. Review current status and action items.');
-      break;
-    }
-    case 'licensing-engine': {
-      askOllama('licensing','Managing platform licensing and white-label deployments. Review active licenses and partner agreements.');
-      break;
-    }
-    case 'biz-qr': {
-      askOllama('QR management','Managing QR codes for attendance, check-in, and resource access across all campuses.');
-      break;
-    }
-
-    // -- CERTS & EDUCATION -----------------------------------------
-    case 'certs-vault': {
-      askOllama('certifications vault','Secure storage for member certifications. Track completion, expiration, and employer verification needs.');
-      break;
-    }
-    case 'education-gateway': {
-      askOllama('education','Full education gateway. GED, certifications, life skills, trade training. What is this member working toward?');
-      break;
-    }
-    case 'credit-restoration': {
-      speak('Opening credit restoration. Financial freedom is part of total restoration. Let us review where to start rebuilding credit today.');
-      break;
-    }
-    case 'reunification': {
-      speak('Opening reunification services. "And he shall turn the heart of the fathers to the children." Malachi 4:6 KJV. Family healing is possible. How can we help restore this relationship?');
-      break;
-    }
-    case 'resident': {
-      askOllama('resident management','Managing individual resident record. Review housing assignment, program progress, and any outstanding needs.');
-      break;
-    }
-    case 'qr-scanner': {
-      speak('QR attendance scanner ready. Members can scan in at any campus meeting. Is there a meeting starting now?');
-      break;
-    }
-    case 'doc-recovery': {
-      speak('Opening document recovery. Many members need help obtaining birth certificates, IDs, and social security cards. Which document does this member need?');
-      break;
-    }
-    case 'resources-library': {
-      askOllama('resources library','Accessing ministry resource library. Scripture studies, recovery materials, and life skills resources available.');
-      break;
-    }
-    case 'adopt': {
-      askOllama('adoption program','Ministry adoption program for families and community partners. Connect supporters with members who need mentorship.');
-      break;
-    }
-    case 'portal': {
-      var s3=window._rrnAutoSession||{};
-      askOllama('member portal','Member portal for '+(s3.name||'member')+'. Access all personal tools, progress, and communications.');
-      break;
-    }
-
-    default: {
-      var sName=section.replace(/-/g,' ').replace(/\w/g,function(l){return l.toUpperCase();});
-      askOllama(sName,'User navigated to '+sName+'. Provide helpful context and suggest next action.');
-      break;
-    }
+  // Execute response or fall back
+  if(responses[section]) {
+    responses[section]();
+  } else {
+    // Generic Apostolic fallback
+    var generics = [
+      "You are in the right place. The work does not do itself but God does not leave you to do it alone. What do you need right now?",
+      "Real talk — every section of this platform is a tool for the covenant work. What are you trying to get done here?",
+      "The Word says in all thy ways acknowledge him and he shall direct thy paths. Proverbs 3:6. You are in this section for a reason. What is it?",
+      "Stay with it. What do you need me to help you do here?",
+    ];
+    speak(generics[Math.floor(Math.random()*generics.length)]);
   }
-};
+};;
 
 
 (function(){
@@ -51672,18 +51322,71 @@ function _setHeal(s){
 }
 
 // -- REPAIRS -----------------------------------------------------------
-window.CaRepairs={
-  get:function(){try{return JSON.parse(localStorage.getItem('caleb_repairs')||'[]');}catch(e){return[];}},
-  add:function(t){
-    var r=this.get();
-    r.push({id:Date.now(),time:new Date().toLocaleTimeString(),date:new Date().toLocaleDateString(),task:t,status:'pending'});
-    try{localStorage.setItem('caleb_repairs',JSON.stringify(r.slice(-50)));}catch(e){}
+// ── UNIFIED REPAIR STORE ─────────────────────────────────────────────────────
+// Single localStorage key: 'rrn_repairs'
+// Read by: _calebSystemHealth, repair dashboard, Caleb drawer, QA swarm
+// Written by: Caleb voice commands, self-heal engine
+window.CaRepairs = {
+  KEY: 'rrn_repairs',
+  get: function(){
+    try{ return JSON.parse(localStorage.getItem(this.KEY)||'[]'); }catch(e){ return []; }
   },
-  clear:function(){try{localStorage.removeItem('caleb_repairs');}catch(e){}}
+  add: function(task, source){
+    if(!task || task.length < 3) return; // reject garbage
+    var r = this.get();
+    // Deduplicate: don't add if identical task added in last 30 seconds
+    var now = Date.now();
+    var recent = r.filter(function(x){ return x.task===task && (now - (x.ts||0)) < 30000; });
+    if(recent.length > 0){ console.log('[CaRepairs] Duplicate skipped:', task.slice(0,40)); return; }
+    r.push({
+      id: now,
+      ts: now,
+      time: new Date().toLocaleTimeString(),
+      date: new Date().toLocaleDateString(),
+      task: task,
+      source: source || 'caleb',
+      status: 'pending'
+    });
+    try{ localStorage.setItem(this.KEY, JSON.stringify(r.slice(-100))); }catch(e){}
+  },
+  resolve: function(id){
+    var r = this.get();
+    r = r.map(function(x){ return x.id===id ? Object.assign({},x,{status:'done'}) : x; });
+    try{ localStorage.setItem(this.KEY, JSON.stringify(r)); }catch(e){}
+  },
+  clear: function(){ try{ localStorage.removeItem(this.KEY); }catch(e){} },
+  pending: function(){ return this.get().filter(function(r){ return r.status==='pending'; }); },
+  // Migrate old keys on first load
+  migrate: function(){
+    var old1 = JSON.parse(localStorage.getItem('rrn_repairs')||'[]');
+    var old2 = JSON.parse(localStorage.getItem('rrn_repairs')||'[]');
+    var existing = this.get().map(function(r){ return r.task; });
+    var migrated = 0;
+    old1.concat(old2).forEach(function(r){
+      if(r.task && existing.indexOf(r.task) < 0){
+        // Skip obvious echo entries
+        var t = (r.task||'').toLowerCase();
+        if(t.indexOf('repair logged') >= 0 || t.indexOf('queued') >= 0 || t.indexOf('open questions') >= 0) return;
+        migrated++;
+      }
+    });
+    if(migrated === 0 && (old1.length || old2.length)){
+      // Old stores had only echo garbage — clear them
+      localStorage.removeItem('caleb_repairs');
+      localStorage.removeItem('caleb_repair_queue');
+      console.log('[CaRepairs] Cleared', old1.length + old2.length, 'echo artifacts from old repair stores');
+    }
+  }
 };
+// Run migration on load
+try{ window.CaRepairs.migrate(); }catch(e){}
 window._renderRepairLog=function(){
   var p=document.getElementById('caleb-repair-log');if(!p)return;
-  var r=window.CaRepairs.get();
+  var r=window.CaRepairs.get().filter(function(x){
+    // Filter out echo artifacts before rendering
+    var t=(x.task||'').toLowerCase();
+    return !(t.indexOf('repair logged')>=0||t.indexOf('caleb key')>=0||t.indexOf('open questions')>=0);
+  });
   if(!r.length){p.innerHTML='<div style="color:#4a5568;font-style:italic;font-size:0.6rem">No repairs logged.</div>';return;}
   p.innerHTML=r.slice(-5).reverse().map(function(x){
     var c=x.status==='done'?'#5bc46e':x.status==='in-progress'?'#c8913a':'#2dd4c0';
@@ -51800,6 +51503,8 @@ window._startPersistentMicWithWhisper = function(){
 
 window._calebSpeak=function(text,cb){
   if(!text||window._calebGreeting&&!window._calebGreeted)return;
+  // Store last spoken text for echo detection
+  window._lastCalebSpeech = (text||'').replace(/<[^>]+>/g,'').slice(0,200);
   
   // Use Piper TTS if available - returns base64 WAV, browser plays it
   if(window._piperOnline){
@@ -51924,14 +51629,27 @@ function _startPersistentMic(){
   };
 
   r.onresult = function(e){
-    // Don't process while Caleb is speaking
-    if(window._micSuspend || window._isSpeaking) return;
+    // Hard guards — ignore if Caleb is speaking or suspended
+    if(window._micSuspend || window._isSpeaking || window.speechSynthesis.speaking) return;
     var t = '';
     for(var i = e.resultIndex; i < e.results.length; i++){
       if(e.results[i].isFinal) t += e.results[i][0].transcript;
     }
     t = t.trim();
     if(!t || t.length < 2) return;
+    // Filter: ignore if the text matches something Caleb just said (echo detection)
+    if(window._lastCalebSpeech && t.length > 5){
+      var last = (window._lastCalebSpeech||'').toLowerCase().slice(0,60);
+      var heard = t.toLowerCase().slice(0,60);
+      // If 50%+ words overlap, it's likely an echo
+      var lastWords = last.split(' ');
+      var heardWords = heard.split(' ');
+      var overlap = heardWords.filter(function(w){ return w.length>3 && lastWords.indexOf(w)>=0; }).length;
+      if(overlap >= Math.max(2, heardWords.length * 0.5)){
+        console.log('[CALEB MIC] Echo detected — ignoring:', t.slice(0,40));
+        return;
+      }
+    }
     console.log('[CALEB MIC]', t);
     _micSetStatus('thinking');
     var inp = document.getElementById('caleb-text-input');
@@ -51940,86 +51658,193 @@ function _startPersistentMic(){
   };
 
   r.onerror = function(e){
-    // 'no-speech' and 'aborted' are normal — restart silently
-    if(e.error === 'no-speech' || e.error === 'aborted') return;
-    if(e.error === 'not-allowed'){
-      console.warn('[CALEB MIC] Permission denied — click mic button to retry');
+    if(e.error === 'no-speech') return; // normal — no speech detected, keep running
+    if(e.error === 'aborted')  return; // normal — we triggered stop
+    if(e.error === 'network'){
+      // file:// hard block — Chrome refuses mic on file protocol
+      // Stop permanently, switch to push-to-talk mode
+      console.log('[CALEB MIC] Network error on file:// — switching to push-to-talk mode');
+      window._micActive  = false;
       window._micGranted = false;
+      window._micPushToTalk = true;
+      window._micRecog = null;
+      _micSetStatus('idle');
+      // Update mic button label to show push-to-talk mode
+      var l = document.getElementById('caleb-mic-label');
+      if(l){ l.textContent = 'HOLD TO SPEAK'; l.style.color = '#c8913a'; }
+      return;
+    }
+    if(e.error === 'not-allowed'){
+      console.warn('[CALEB MIC] Permission denied');
+      window._micActive  = false;
+      window._micGranted = false;
+      window._micRecog   = null;
       _micSetStatus('idle');
       return;
     }
-    console.warn('[CALEB MIC] Error:', e.error);
+    // Any other error — stop, don't restart
+    console.warn('[CALEB MIC] Error:', e.error, '— stopping');
+    window._micActive  = false;
+    window._micGranted = false;
+    window._micRecog   = null;
+    _micSetStatus('idle');
   };
 
   r.onend = function(){
-    // Auto-restart unless deliberately stopped or permission denied
-    if(window._micActive && window._micGranted && !window._micSuspend){
-      setTimeout(function(){
-        try{ r.start(); }catch(e){}
-      }, 200);
-    } else {
+    if(!window._micActive || !window._micGranted || window._micSuspend || window._micPushToTalk){
       _micSetStatus('idle');
+      return;
     }
+    // Only auto-restart on HTTPS — file:// gets network errors in a loop
+    if(window.location.protocol !== 'https:'){
+      _micSetStatus('idle');
+      return;
+    }
+    // HTTPS: restart after short delay to keep session alive
+    setTimeout(function(){
+      if(window._micActive && window._micGranted && window._micRecog){
+        try{ r.start(); }catch(e){}
+      }
+    }, 200);
   };
 
-  try{ r.start(); }catch(e){ console.warn('[CALEB MIC] Start failed:', e.message); }
+  try{ r.start(); }catch(e){
+    console.warn('[CALEB MIC] Start failed:', e.message);
+    window._micActive = false;
+    _micSetStatus('idle');
+  }
 }
 
-// Start on first user interaction — satisfies browser gesture requirement
-// Only needs to happen once per session
+// ── PROTOCOL-AWARE MIC STARTUP ─────────────────────────────────────────────
+// HTTPS: start persistent continuous session on first gesture
+// file://: push-to-talk only — browser blocks mic on file protocol
 (function(){
-  var _started = false;
-  function _onFirstGesture(){
-    if(_started) return;
-    _started = true;
-    document.removeEventListener('click',  _onFirstGesture);
-    document.removeEventListener('keydown', _onFirstGesture);
-    setTimeout(_startPersistentMic, 300);
+  var isHTTPS = window.location.protocol === 'https:';
+  var isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+  if(isHTTPS || isLocalhost){
+    // HTTPS / localhost: start persistent mic on first gesture
+    var _started = false;
+    function _onFirstGesture(){
+      if(_started) return;
+      _started = true;
+      document.removeEventListener('click',   _onFirstGesture);
+      document.removeEventListener('keydown', _onFirstGesture);
+      setTimeout(_startPersistentMic, 500);
+    }
+    document.addEventListener('click',   _onFirstGesture);
+    document.addEventListener('keydown', _onFirstGesture);
+    console.log('[CALEB MIC] HTTPS/localhost — persistent mic will start on first interaction');
+  } else {
+    // file:// — push-to-talk mode
+    window._micPushToTalk = true;
+    console.log('[CALEB MIC] file:// detected — push-to-talk mode. Deploy to GitHub Pages for continuous voice.');
+    var l = document.getElementById('caleb-mic-label');
+    if(l){ l.textContent = 'HOLD TO SPEAK'; l.style.color = '#c8913a'; }
   }
-  document.addEventListener('click',   _onFirstGesture);
-  document.addEventListener('keydown', _onFirstGesture);
 })();
 
-// Suspend mic while Caleb is speaking, resume after
+// Hard-stop mic while Caleb speaks, restart only after speech ends + delay
+// Prevents mic from picking up Caleb's own TTS output
 var _origSpeak = window._calebSpeak;
 window._calebSpeak = function(text, cb){
+  // 1. Immediately abort any active recognition — hard stop, not suspend
   window._micSuspend = true;
+  if(window._micRecog){
+    try{ window._micRecog.abort(); }catch(e){}
+  }
   _micSetStatus('speaking');
+
   var wrapped = function(){
     window._micSuspend = false;
-    if(window._micActive && window._micGranted){
-      _micSetStatus('listening');
-      // Ensure recognition is still running
-      try{ if(window._micRecog) window._micRecog.start(); }catch(e){}
+    if(window._micActive && window._micGranted && window.location.protocol === 'https:'){
+      // Wait 800ms after speech ends — let speaker audio dissipate
+      // Prevents TTS echo from being picked up as a command
+      setTimeout(function(){
+        if(!window._micSuspend && window._micActive){
+          _micSetStatus('listening');
+          // Create fresh recognition instance — don't reuse aborted one
+          window._micRecog = null;
+          _startPersistentMic();
+        }
+      }, 800);
     } else {
-      _micSetStatus('idle');
+      _micSetStatus(window._micPushToTalk ? 'idle' : 'idle');
     }
     if(cb) cb();
   };
+
   if(_origSpeak) _origSpeak(text, wrapped);
   else wrapped();
 };
 
-// Button handler — toggle mic on/off
+// Button handler — protocol-aware
+// HTTPS: toggles continuous session on/off
+// file://: push-to-talk — hold activates, release sends
 window._cMic = function(){
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR){ alert('Voice requires Chrome or Edge.'); return; }
+  if(!SR){ alert('Voice requires Chrome or Edge browser.'); return; }
 
-  if(!window._micGranted || !window._micRecog){
-    // First press — start the persistent session
-    _startPersistentMic();
+  // Push-to-talk mode (file://) — one-shot recognition per press
+  if(window._micPushToTalk || window.location.protocol !== 'https:'){
+    if(window._micActive){
+      // Already listening — stop and send
+      window._micActive = false;
+      try{ if(window._micRecog){ window._micRecog.stop(); } }catch(e){}
+      _micSetStatus('idle');
+      return;
+    }
+    // Start one-shot listen
+    _micSetStatus('listening');
+    var r2 = new SR();
+    r2.continuous = false; r2.interimResults = false; r2.lang = 'en-US';
+    r2.maxAlternatives = 1;
+    window._micRecog = r2;
+    window._micActive = true;
+    r2.onresult = function(e){
+      var t = '';
+      for(var i=0;i<e.results.length;i++) if(e.results[i].isFinal) t+=e.results[i][0].transcript;
+      t = t.trim();
+      if(t){
+        console.log('[CALEB MIC]', t);
+        _micSetStatus('thinking');
+        var inp = document.getElementById('caleb-text-input');
+        if(inp) inp.value = t;
+        window._cSend();
+      }
+    };
+    r2.onerror = function(e){
+      if(e.error === 'network'){
+        window._micPushToTalk = true;
+        console.warn('[CALEB MIC] Use GitHub Pages for voice: https://chuckedwards1972.github.io/rrn-platform/');
+        if(ab) ab.innerHTML = '<div style="color:#c8913a;font-size:0.68rem;">Voice requires GitHub Pages. Open: chuckedwards1972.github.io/rrn-platform</div>';
+      }
+      window._micActive = false;
+      _micSetStatus('idle');
+    };
+    r2.onend = function(){
+      window._micActive = false;
+      _micSetStatus(window._micGranted ? 'listening' : 'idle');
+    };
+    try{ r2.start(); }catch(e){
+      window._micActive = false;
+      _micSetStatus('idle');
+    }
     return;
   }
 
+  // HTTPS continuous mode — toggle on/off
+  if(!window._micGranted || !window._micRecog){
+    _startPersistentMic();
+    return;
+  }
   if(window._micActive){
-    // Stop
     window._micActive = false;
     window._micGranted = false;
     try{ window._micRecog.stop(); window._micRecog = null; }catch(e){}
     _micSetStatus('idle');
     console.log('[CALEB MIC] Session stopped');
   } else {
-    // Restart
     window._micRecog = null;
     window._micActive = true;
     _startPersistentMic();
@@ -52062,6 +51887,7 @@ window._cSend=function(){
     { id:'nav:pipeline-board', score:0, patterns:['pipeline','board','kanban','tasks','projects','workflow'] },
     { id:'nav:qa-swarm',       score:0, patterns:['qa','test','swarm','quality','diagnose','audit','check system'] },
     { id:'nav:campuses',       score:0, patterns:['campus','location','church','site','place','branch','launch campus','new campus'] },
+    { id:'nav:sub-operator-onboarding', score:0, patterns:['sub operator','sub-operator','onboard ministry','new ministry','add ministry','ministry application','exhibit b','network expansion','bring in ministry','partner ministry'] },
 
     // ACTIONS
     { id:'act:checkin',        score:0, patterns:['check in','checking in','im here','i am here','mark me present','log attendance','i showed up','sign in','arrived','here for meeting','mark attendance'] },
@@ -52173,9 +51999,17 @@ window._cSend=function(){
 
       case 'repair':
         var rdesc = q.replace(/^(caleb\s+)?(please\s+)?(fix|repair|log\s+issue|report\s+bug)\s*/i,'').trim() || q;
-        if(window.CaRepairs) window.CaRepairs.add(rdesc);
-        if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#c8913a;font-size:0.7rem;">\uD83D\uDD27 Repair logged: '+rdesc+'</div>'; }
-        window._calebSpeak('Repair logged and queued.');
+        // Don't log Caleb's own responses as repairs
+        var _skipWords = ['repair logged','queued','caleb key','open questions','set your','try saying'];
+        var _isEcho = _skipWords.some(function(w){ return rdesc.toLowerCase().indexOf(w)>=0; });
+        if(!_isEcho && rdesc.length > 5){
+          if(window.CaRepairs) window.CaRepairs.add(rdesc, 'voice');
+          if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#c8913a;font-size:0.7rem;">\uD83D\uDD27 Repair logged: '+rdesc+'</div>'; }
+          window._calebSpeak('Repair logged. The self-heal engine will classify it.');
+        } else {
+          if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#718096;font-size:0.68rem;">What needs to be repaired? Describe the issue.</div>'; }
+          window._calebSpeak('What needs to be repaired? Describe the issue.');
+        }
         break;
 
       case 'status':
@@ -52337,9 +52171,7 @@ function _calebSystemHealth(){
     var d = new Date(g.deadline);
     return d > new Date() && d < new Date(Date.now()+7*864e5);
   }).length;
-  var repairs   = [];
-  try{ repairs = JSON.parse(localStorage.getItem('caleb_repair_queue')||'[]'); }catch(e){}
-  var pendingRepairs = repairs.filter(function(r){return r.status==='pending';}).length;
+  var pendingRepairs = window.CaRepairs ? window.CaRepairs.pending().length : 0;
   var healAudit = [];
   try{ healAudit = JSON.parse(localStorage.getItem('rrn_heal_audit')||'[]'); }catch(e){}
   var recentFails = healAudit.filter(function(a){
@@ -52549,6 +52381,101 @@ window._buildDailyBriefing = function(){
   _origBriefing && _origBriefing();
 };
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CALEB SANDBOX BEHAVIOR LOCKING SYSTEM (caleb-voice-engine skill)
+// Approved behaviors stored permanently in localStorage
+// Cannot be overridden by prompts or instructions
+// ═══════════════════════════════════════════════════════════════════════════
+window.CalebBehaviors = (function(){
+  var LOCK_KEY = 'caleb_locked_behaviors';
+  var SANDBOX_KEY = 'caleb_sandbox_log';
+
+  // Hard-locked behaviors from skill — permanent, load on every session
+  var HARD_LOCKED = {
+    'L-001': { rule: 'No cross imagery — use 📖 only', active: true },
+    'L-002': { rule: 'No Serenity Prayer in any form', active: true },
+    'L-003': { rule: 'No AA/Big Book/disease model language', active: true },
+    'L-004': { rule: 'No "Higher Power" — Jesus name only', active: true },
+    'L-005': { rule: 'KJV only for all scripture', active: true },
+    'L-006': { rule: '"Pastor" or "accountability partner" — never "sponsor"', active: true },
+    'L-007': { rule: '"Recovery start date" — never "sobriety date"', active: true },
+    'L-008': { rule: 'No Trinity language — Oneness framing only', active: true },
+    'L-009': { rule: 'Every response ends with movement (question or next step)', active: true },
+    'L-010': { rule: 'Max 2-3 sentences per beat before pause or input', active: true },
+    'L-011': { rule: 'Never read punctuation or announce transitions', active: true },
+    'L-012': { rule: 'No empty affirmations — "Great!" / "Awesome!" banned', active: true },
+  };
+
+  function getLocked(){
+    var stored = {};
+    try{ stored = JSON.parse(localStorage.getItem(LOCK_KEY)||'{}'); }catch(e){}
+    return Object.assign({}, HARD_LOCKED, stored);
+  }
+
+  function getSandbox(){
+    try{ return JSON.parse(localStorage.getItem(SANDBOX_KEY)||'[]'); }catch(e){ return []; }
+  }
+
+  function addSandbox(id, description, candidate){
+    var log = getSandbox();
+    log.unshift({ id:id, description:description, candidate:candidate, status:'testing', ts:new Date().toISOString(), uses:0 });
+    try{ localStorage.setItem(SANDBOX_KEY, JSON.stringify(log.slice(0,20))); }catch(e){}
+  }
+
+  function lockBehavior(id, rule){
+    var locked = getLocked();
+    locked[id] = { rule:rule, active:true, lockedAt:new Date().toISOString() };
+    try{ localStorage.setItem(LOCK_KEY, JSON.stringify(locked)); }catch(e){}
+    console.log('[CALEB BEHAVIOR] Locked: '+id+' — '+rule);
+  }
+
+  function validateResponse(text){
+    // Run text through locked behavior checks
+    var violations = [];
+    if(/✝|cross/i.test(text)) violations.push('L-001: Cross imagery detected');
+    if(/serenity prayer/i.test(text)) violations.push('L-002: Serenity Prayer detected');
+    if(/higher power|big book|disease of addiction/i.test(text)) violations.push('L-003: AA language detected');
+    if(/trinity|three persons|god the father and son/i.test(text)) violations.push('L-008: Trinity language detected');
+    if(/sobriety date/i.test(text)) violations.push('L-007: "Sobriety date" detected — use "recovery start date"');
+    if(/sponsor/i.test(text)) violations.push('L-006: "Sponsor" detected — use "pastor" or "accountability partner"');
+    if(violations.length > 0){
+      console.warn('[CALEB BEHAVIOR] Violations:', violations);
+    }
+    return violations;
+  }
+
+  // Lock the three sandbox candidates from skill (approved after testing)
+  // SANDBOX-001: "Real talk." opener — LOCK
+  lockBehavior('L-013', 'Use "Real talk." as primary conversational opener — locked v1.1');
+  // SANDBOX-002: Short scripture drops without full reference first — LOCK
+  lockBehavior('L-014', 'Scripture delivery: short drop first, then reference — e.g. "Repentance. Jesus name. Holy Ghost. Acts 2:38." — locked v1.1');
+  // SANDBOX-003: Action-first navigation — LOCK
+  lockBehavior('L-015', 'Navigation: action-first phrasing — "Start with the reflection" not "The reflection section below..." — locked v1.1');
+
+  return {
+    getLocked: getLocked,
+    getSandbox: getSandbox,
+    addSandbox: addSandbox,
+    lockBehavior: lockBehavior,
+    validate: validateResponse,
+    report: function(){
+      var locked = getLocked();
+      console.log('[CALEB BEHAVIORS] Locked behaviors:');
+      Object.entries(locked).forEach(function(e){ console.log('  '+e[0]+': '+e[1].rule); });
+    }
+  };
+})();
+
+// Patch _calebSpeak to validate every response against locked behaviors
+var _origSpeak_validate = window._calebSpeak;
+window._calebSpeak = function(text, cb){
+  if(window.CalebBehaviors) window.CalebBehaviors.validate(text);
+  if(_origSpeak_validate) _origSpeak_validate(text, cb);
+};
+
+console.log('[CALEB] Behavior locking system active — '+Object.keys(window.CalebBehaviors.getLocked()).length+' behaviors locked');
+
 // ── Nav guard — wait for React to mount _rrnSetActiveSection ─────────────
 // The scored intent engine calls this immediately but React may not be ready
 window._calebNavigate = function(section, q){
@@ -52700,7 +52627,7 @@ setTimeout(function(){
   var hr=new Date().getHours();
   var grts=hr<12?['Good morning','Good morning','Rise and shine']:hr<17?['Good afternoon','Welcome back','Good to see you']:['Good evening','Evening','Welcome back'];
   var g=grts[new Date().getDate()%3];
-  var p=window.CaRepairs?window.CaRepairs.get().filter(function(r){return r.status==='pending';}).length:0;
+  var p = window.CaRepairs ? window.CaRepairs.pending().length : 0;
   var msg=g+'. Kayleb online.'+(p?' '+p+' repair'+(p>1?'s':'')+' pending.':' All systems clear.');
   window._calebSpeak(msg,function(){
     setTimeout(_buildDailyBriefing,1500);
@@ -53687,4 +53614,75 @@ window.rrnExportGrant = function(grantId) {
 
 
 
+
+        // RCAE — Cognitive Reinforcement & Activation Engine (cognitive-reinforcement-engine skill)
+        // Recall / Confront / Decision / Action — mandatory per lesson
+        React.createElement('div',{style:{marginBottom:'1.5rem'}},
+          // RECALL
+          React.createElement('div',{style:{borderLeft:'3px solid #3b9ef5',background:'rgba(59,158,245,0.06)',
+            padding:'1rem 1.25rem',borderRadius:'0 8px 8px 0',marginBottom:'0.75rem'}},
+            React.createElement('div',{style:{fontSize:'0.65rem',fontWeight:900,color:'#3b9ef5',
+              textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:'0.5rem'}},'📖 Recall'),
+            React.createElement('div',{style:{fontSize:'0.85rem',color:'var(--dtxt)',lineHeight:1.7,marginBottom:'0.75rem'}},
+              l.recall || 'What did you believe about this topic before today's lesson?'),
+            React.createElement('textarea',{
+              defaultValue: (function(){ try{ return JSON.parse(localStorage.getItem('rcae_recall_'+l.id)||'""'); }catch(e){ return ''; } })(),
+              onChange: function(e){ try{ localStorage.setItem('rcae_recall_'+l.id, JSON.stringify(e.target.value)); }catch(ex){} },
+              placeholder:'Write your response here...',
+              style:{width:'100%',padding:'0.65rem',borderRadius:6,border:'1px solid var(--bdr2)',
+                background:'var(--bg3)',color:'var(--dtxt)',fontSize:'0.8rem',lineHeight:1.6,
+                minHeight:'70px',resize:'vertical',fontFamily:'var(--font-body)',boxSizing:'border-box'}
+            })
+          ),
+          // CONFRONTATION
+          React.createElement('div',{style:{borderLeft:'3px solid #e8704a',background:'rgba(232,112,74,0.06)',
+            padding:'1rem 1.25rem',borderRadius:'0 8px 8px 0',marginBottom:'0.75rem'}},
+            React.createElement('div',{style:{fontSize:'0.65rem',fontWeight:900,color:'#e8704a',
+              textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:'0.5rem'}},'⚡ Confront'),
+            React.createElement('div',{style:{fontSize:'0.85rem',color:'var(--dtxt)',lineHeight:1.7}},
+              l.confront || 'If what you believed before was wrong, what has been the cost of that belief in your life?')
+          ),
+          // DECISION
+          React.createElement('div',{style:{borderLeft:'3px solid #c8913a',background:'rgba(200,145,58,0.06)',
+            padding:'1rem 1.25rem',borderRadius:'0 8px 8px 0',marginBottom:'0.75rem'}},
+            React.createElement('div',{style:{fontSize:'0.65rem',fontWeight:900,color:'#c8913a',
+              textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:'0.5rem'}},'🔥 Decision'),
+            React.createElement('div',{style:{fontSize:'0.85rem',color:'var(--dtxt)',lineHeight:1.7,marginBottom:'0.75rem'}},
+              l.decision || 'What do you choose to believe and act on from this lesson?'),
+            React.createElement('div',{style:{display:'flex',gap:'0.75rem',flexWrap:'wrap'}},
+              React.createElement('button',{
+                onClick: function(){ try{ localStorage.setItem('rcae_decision_'+l.id, 'commit'); }catch(e){} document.getElementById('rcae-commit-'+l.id).style.background='rgba(200,145,58,0.3)'; document.getElementById('rcae-resist-'+l.id).style.background='transparent'; },
+                id: 'rcae-commit-'+l.id,
+                style:{padding:'0.5rem 1.25rem',borderRadius:6,border:'1px solid rgba(200,145,58,0.4)',
+                  background:(function(){ try{ return localStorage.getItem('rcae_decision_'+l.id)==='commit'?'rgba(200,145,58,0.3)':'transparent'; }catch(e){ return 'transparent'; } })(),
+                  color:'var(--gold)',cursor:'pointer',fontSize:'0.8rem',fontWeight:700,
+                  transition:'all 0.2s'}
+              },'I commit to this'),
+              React.createElement('button',{
+                onClick: function(){ try{ localStorage.setItem('rcae_decision_'+l.id, 'resist'); }catch(e){} document.getElementById('rcae-resist-'+l.id).style.background='rgba(252,129,129,0.2)'; document.getElementById('rcae-commit-'+l.id).style.background='transparent'; },
+                id: 'rcae-resist-'+l.id,
+                style:{padding:'0.5rem 1.25rem',borderRadius:6,border:'1px solid rgba(252,129,129,0.3)',
+                  background:(function(){ try{ return localStorage.getItem('rcae_decision_'+l.id)==='resist'?'rgba(252,129,129,0.2)':'transparent'; }catch(e){ return 'transparent'; } })(),
+                  color:'#fc8181',cursor:'pointer',fontSize:'0.8rem',fontWeight:700,
+                  transition:'all 0.2s'}
+              },'I am still resisting this')
+            )
+          ),
+          // ACTION
+          React.createElement('div',{style:{borderLeft:'3px solid #2ec4a0',background:'rgba(46,196,160,0.06)',
+            padding:'1rem 1.25rem',borderRadius:'0 8px 8px 0',marginBottom:'0.75rem'}},
+            React.createElement('div',{style:{fontSize:'0.65rem',fontWeight:900,color:'#2ec4a0',
+              textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:'0.5rem'}},'✅ Action'),
+            React.createElement('div',{style:{fontSize:'0.85rem',color:'var(--dtxt)',lineHeight:1.7,marginBottom:'0.75rem'}},
+              l.action || 'What is one specific thing you will do before your next lesson that applies what you learned today?'),
+            React.createElement('textarea',{
+              defaultValue: (function(){ try{ return JSON.parse(localStorage.getItem('rcae_action_'+l.id)||'""'); }catch(e){ return ''; } })(),
+              onChange: function(e){ try{ localStorage.setItem('rcae_action_'+l.id, JSON.stringify(e.target.value)); }catch(ex){} },
+              placeholder:'Log your action commitment...',
+              style:{width:'100%',padding:'0.65rem',borderRadius:6,border:'1px solid var(--bdr2)',
+                background:'var(--bg3)',color:'var(--dtxt)',fontSize:'0.8rem',lineHeight:1.6,
+                minHeight:'70px',resize:'vertical',fontFamily:'var(--font-body)',boxSizing:'border-box'}
+            })
+          )
+        ),
 
