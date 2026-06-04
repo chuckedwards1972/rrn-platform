@@ -2349,8 +2349,8 @@ const SYSTEM_ACCOUNTS = {
   // -- L1: HQ Administrator ------------------------------------------------
   'RRNL1': {
     password: 'ACTS2:38', role: 'hq_administrator',
-    name: 'Jeff Walthers', level: 1, campus: 'All Campuses',
-    title: 'HQ Administrator'
+    name: 'Chuck Edwards', level: 0, campus: 'All Campuses',
+    title: 'Platform Owner'
   },
 
   // -- L2: Operations Supervisor -------------------------------------------
@@ -12895,6 +12895,864 @@ function SubOperatorOnboardingPanel({ platform, update, toast, session, setActiv
     )
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GRANT EMAIL COMMAND CENTER
+// Gmail integration via mailto + approval queue
+// Caleb AI drafts responses to funder emails
+// L0 only approves — Chuck Edwards exclusively
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CALEB GRANT OS — Full Simulation Pipeline
+// Modes: Dashboard → Review → Readiness Gate → Simulation → Diagnostics →
+//        Auto-Repair → Re-Validation → Final Submission Gate
+// Audit trail in localStorage. No silent fixes. L0 approval required.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function GrantOSPanel({ grant, platform, onClose, toast }) {
+  var AUDIT_KEY = 'rrn_grant_os_audit_' + (grant ? grant.id : 'new');
+  var STATE_KEY = 'rrn_grant_os_state_' + (grant ? grant.id : 'new');
+
+  function loadAudit(){ try{ return JSON.parse(localStorage.getItem(AUDIT_KEY)||'[]'); }catch(e){ return []; } }
+  function saveAudit(a){ try{ localStorage.setItem(AUDIT_KEY, JSON.stringify(a.slice(0,500))); }catch(e){} }
+  function loadState(){ try{ return JSON.parse(localStorage.getItem(STATE_KEY)||'null'); }catch(e){ return null; } }
+  function saveState(s){ try{ localStorage.setItem(STATE_KEY, JSON.stringify(s)); }catch(e){} }
+
+  var _sm = React.useState(loadState()||{
+    mode: 'dashboard',    // dashboard|review|gate|simulation|diagnostic|repair|revalidation|final
+    cycle: 0,
+    readinessScore: 0,
+    simResults: [],
+    issues: [],
+    repairs: [],
+    finalDecision: null,
+  }); var state = _sm[0]; var setState = _sm[1];
+
+  var _sa = React.useState(loadAudit()); var audit = _sa[0]; var setAudit = _sa[1];
+  var _sl = React.useState(false); var loading = _sl[0]; var setLoading = _sl[1];
+  var _sm2 = React.useState(''); var message = _sm2[0]; var setMessage = _sm2[1];
+  var _sr = React.useState([]); var reviewers = _sr[0]; var setReviewers = _sr[1];
+
+  var apiKey = window.RRN_ANTHROPIC_KEY || localStorage.getItem('rrn_anthropic_key') || '';
+
+  // Platform context for AI calls
+  var m = platform.members || [];
+  var active = m.filter(function(x){ return x.status==='ACTIVE'; }).length;
+  var employed = m.filter(function(x){ return x.employmentStatus&&x.employmentStatus.indexOf('Employed')>=0; }).length;
+  var completions = m.filter(function(x){ return (x.stepNum||0)>=12; }).length;
+  var housing = platform.housing || {};
+  var beds = housing.totalBeds||0;
+  var occupied = housing.occupiedBeds||0;
+  var platformCtx = 'Organization: Refined Recovery Network LLC. CEO: Charles L. Edwards Jr. Location: Port Allen, Louisiana. Active members: '+active+'. Program completions: '+completions+'. Employed: '+employed+'. Housing: '+occupied+'/'+beds+' beds. Grant: '+(grant?grant.name+' ('+grant.agency+', '+grant.type+')':'General')+'. Fit score: '+(grant?grant.grantFit+'%':'N/A')+'.';
+
+  function log(action, detail, level){
+    var entry = { ts: new Date().toISOString(), action: action, detail: detail, level: level||'INFO', cycle: state.cycle };
+    var a2 = [entry].concat(audit).slice(0,500);
+    setAudit(a2);
+    saveAudit(a2);
+  }
+
+  function advance(newMode, patch){
+    var next = Object.assign({}, state, patch||{}, { mode: newMode });
+    setState(next);
+    saveState(next);
+  }
+
+  // ── MODE 1: Dashboard — Signal Intake ────────────────────────────────────
+  function runDashboard(){
+    if(!grant){ toast && toast({icon:'⚠️',title:'Select a grant from the catalog first'}); return; }
+    setLoading(true);
+    setMessage('Caleb is reviewing eligibility, alignment, and completeness...');
+    log('DASHBOARD_SCAN','Grant opportunity detected: '+(grant?grant.name:''));
+
+    // Calculate readiness score from platform data
+    var score = grant.grantFit || 80;
+    var draft = null;
+    try{ draft = JSON.parse(localStorage.getItem('rrn_grant_draft_'+(grant?grant.id:'new'))||'null'); }catch(e){}
+
+    var issues = [];
+    if(!draft || !draft.projectSummary)  issues.push({field:'Executive Summary',    severity:'HIGH',   fix:'narrative'});
+    if(!draft || !draft.problemStatement)issues.push({field:'Problem Statement',    severity:'HIGH',   fix:'narrative'});
+    if(!draft || !draft.primaryGoal)     issues.push({field:'Primary Goal',         severity:'HIGH',   fix:'narrative'});
+    if(!draft || !draft.orgEIN)          issues.push({field:'EIN',                  severity:'HIGH',   fix:'data'});
+    if(!draft || !draft.budgetNarrative) issues.push({field:'Budget Narrative',     severity:'MEDIUM', fix:'narrative'});
+    if(!draft || !draft.evalMethods)     issues.push({field:'Evaluation Methods',   severity:'MEDIUM', fix:'narrative'});
+    if(!draft || !draft.submissionDeadline)issues.push({field:'Submission Deadline',severity:'MEDIUM', fix:'data'});
+    var budgetGrant = draft ? (draft.budgetLines||[]).reduce(function(s,l){return s+(parseFloat(l.grantAmt)||0);},0) : 0;
+    if(budgetGrant < 1000)               issues.push({field:'Budget Request',       severity:'HIGH',   fix:'budget'});
+
+    // Adjust score for missing fields
+    var highCount   = issues.filter(function(i){return i.severity==='HIGH';}).length;
+    var medCount    = issues.filter(function(i){return i.severity==='MEDIUM';}).length;
+    score = Math.max(10, score - highCount*8 - medCount*4);
+
+    log('READINESS_SCORED','Score: '+score+'%. Issues: '+issues.length, issues.length>3?'WARN':'INFO');
+
+    setTimeout(function(){
+      setLoading(false);
+      setMessage('');
+      advance('review', { readinessScore: score, issues: issues });
+    }, 1200);
+  }
+
+  // ── MODE 2: Review — Caleb Analysis ──────────────────────────────────────
+  // Displayed as structured panel — no async needed
+
+  // ── MODE 3: Readiness Gate ────────────────────────────────────────────────
+  function proceedToSimulation(){
+    log('GATE_CONFIRMED','User confirmed: proceed to simulation');
+    advance('simulation', { cycle: (state.cycle||0)+1 });
+    runSimulation();
+  }
+
+  // ── MODE 4: Simulation — Automated Correspondence Engine ─────────────────
+  function runSimulation(){
+    setLoading(true);
+    setMessage('Running simulation — 5 reviewer agents analyzing your application...');
+    log('SIMULATION_START','Cycle '+(state.cycle+1)+' — dispatching reviewer agents');
+
+    if(!apiKey){
+      // Rule-based simulation fallback (no API key needed)
+      var draft = null;
+      try{ draft = JSON.parse(localStorage.getItem('rrn_grant_draft_'+(grant?grant.id:'new'))||'null'); }catch(e){}
+      var results = generateSimResults(draft, grant);
+      setTimeout(function(){
+        setLoading(false); setMessage('');
+        setReviewers(results);
+        log('SIMULATION_COMPLETE','Rule-based simulation complete. Results: '+results.filter(function(r){return r.status==='FAIL';}).length+' FAIL, '+results.filter(function(r){return r.status==='PASS';}).length+' PASS');
+        advance('diagnostic', { simResults: results });
+      }, 2000);
+      return;
+    }
+
+    // AI-powered simulation with real reviewer personas
+    var draft2 = null;
+    try{ draft2 = JSON.parse(localStorage.getItem('rrn_grant_draft_'+(grant?grant.id:'new'))||'null'); }catch(e){}
+    var appSummary = draft2 ? ('Title: '+draft2.projectTitle+'. Amount: $'+draft2.projectAmount+'. Summary: '+(draft2.projectSummary||'[blank]').slice(0,300)+'. Problem: '+(draft2.problemStatement||'[blank]').slice(0,200)+'. Budget total: '+(draft2.budgetLines||[]).reduce(function(s,l){return s+(parseFloat(l.grantAmt)||0);},0)+'. Outcomes defined: '+(draft2.outcomes||[]).filter(function(o){return o.target;}).length+'/'+( draft2.outcomes||[]).length+'.'): '[No draft found — application incomplete]';
+
+    var SYS = 'You are a grant review simulation engine. Given a grant application summary, generate exactly 5 structured reviewer responses. Each reviewer has a distinct role. Return ONLY valid JSON array, no markdown, no explanation.\n\nFormat: [{role,status,message,severity,fix}]\n\nRoles: "Grant Compliance Officer", "Financial Reviewer", "Program Fit Analyst", "Narrative Quality Reviewer", "Documentation Validator"\nStatus: "PASS", "PASS_WITH_WARNINGS", "FAIL"\nSeverity: "HIGH", "MEDIUM", "LOW"\nfix: one-sentence specific instruction to fix the issue (or "None" if PASS)\n\nBe realistic, specific, and actionable. Reference actual content from the application. Minimum 2 PASS and minimum 1 FAIL per simulation.';
+
+    var prompt = 'Grant: '+( grant?grant.name+' ('+grant.agency+')':'Unknown')+'\n\nPlatform context: '+platformCtx+'\n\nApplication content: '+appSummary+'\n\nGenerate 5 realistic reviewer responses.';
+
+    fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,system:SYS,messages:[{role:'user',content:prompt}]})
+    }).then(function(r){return r.json();})
+    .then(function(d){
+      var text = (d.content&&d.content[0]&&d.content[0].text)||'[]';
+      var clean = text.replace(/```json|```/g,'').trim();
+      var results;
+      try{ results = JSON.parse(clean); }catch(e){ results = generateSimResults(draft2, grant); }
+      setReviewers(results);
+      log('SIMULATION_COMPLETE','AI simulation cycle '+(state.cycle+1)+'. FAIL: '+results.filter(function(r){return r.status==='FAIL';}).length);
+      setLoading(false); setMessage('');
+      advance('diagnostic', { simResults: results, cycle:(state.cycle||0)+1 });
+    }).catch(function(){
+      var results = generateSimResults(draft2, grant);
+      setReviewers(results);
+      setLoading(false); setMessage('');
+      advance('diagnostic', { simResults: results });
+    });
+  }
+
+  function generateSimResults(draft, g){
+    // Rule-based fallback — no API needed
+    var hasSummary = draft && draft.projectSummary && draft.projectSummary.length > 50;
+    var hasBudget  = draft && (draft.budgetLines||[]).reduce(function(s,l){return s+(parseFloat(l.grantAmt)||0);},0) > 1000;
+    var hasOutcomes= draft && (draft.outcomes||[]).filter(function(o){return o.target;}).length >= 3;
+    var hasEIN     = draft && draft.orgEIN;
+    return [
+      {role:'Grant Compliance Officer',    status:hasEIN?'PASS':'FAIL',               severity:hasEIN?'LOW':'HIGH',   message:hasEIN?'Organization credentials verified. EIN on file.':'EIN not provided — required for federal applications.',                                        fix:hasEIN?'None':'Add EIN to Organization Info section.'},
+      {role:'Financial Reviewer',          status:hasBudget?'PASS_WITH_WARNINGS':'FAIL',severity:hasBudget?'MEDIUM':'HIGH',message:hasBudget?'Budget submitted. Indirect cost rate should be verified against negotiated rate.':'Budget request is missing or too low — grant amount fields are blank.',fix:hasBudget?'Verify indirect cost rate and add budget narrative.':'Complete budget table with grant amount per line item.'},
+      {role:'Program Fit Analyst',         status:'PASS_WITH_WARNINGS',                severity:'MEDIUM',              message:'Program model aligns with funder priorities. Measurable outcome metrics need strengthening — '+(hasOutcomes?'most targets filled':'outcome targets are blank')+'.',fix:hasOutcomes?'Strengthen outcome narrative with baseline data.':'Fill all outcome metric targets with projected numbers.'},
+      {role:'Narrative Quality Reviewer',  status:hasSummary?'PASS':'FAIL',            severity:hasSummary?'LOW':'HIGH', message:hasSummary?'Executive summary is present and readable.':'Executive summary is blank — this is the first thing reviewers read.',                     fix:hasSummary?'None':'Draft executive summary using Caleb AI writer in the Grant Builder.'},
+      {role:'Documentation Validator',     status:'PASS_WITH_WARNINGS',                severity:'LOW',                 message:'Core sections present. Attachments checklist should be reviewed — IRS determination letter and audited financials are typically required.',              fix:'Complete attachments checklist in the Grant Builder before submission.'},
+    ];
+  }
+
+  // ── MODE 5: Diagnostic ───────────────────────────────────────────────────
+  function runDiagnostic(){
+    var fails    = (state.simResults||[]).filter(function(r){return r.status==='FAIL';});
+    var warnings = (state.simResults||[]).filter(function(r){return r.status==='PASS_WITH_WARNINGS';});
+    var issues   = fails.concat(warnings).map(function(r){ return {field:r.role, severity:r.severity, fix:r.fix, message:r.message}; });
+    log('DIAGNOSTIC_COMPLETE','Issues: '+issues.length+' ('+fails.length+' FAIL, '+warnings.length+' WARN)','WARN');
+    // Compute readiness: 100 - 15*FAILs - 5*WARNs
+    var score = Math.max(5, 100 - fails.length*15 - warnings.length*5);
+    advance('repair', { issues: issues, readinessScore: score });
+  }
+
+  // ── MODE 6: Auto-Repair ──────────────────────────────────────────────────
+  function runRepair(){
+    if(!apiKey){
+      // Rule-based repair
+      var repairs = (state.issues||[]).map(function(issue){
+        return {field:issue.field, action:'Flagged for manual review', detail:issue.fix, status:'flagged'};
+      });
+      log('REPAIR_COMPLETE','Rule-based repair: '+repairs.length+' items flagged (no API key — manual review required)','INFO');
+      advance('revalidation', { repairs: repairs });
+      return;
+    }
+
+    setLoading(true);
+    setMessage('Caleb is repairing detected issues...');
+    log('REPAIR_START','Initiating auto-repair on '+( state.issues||[]).length+' issues');
+
+    var issues = state.issues||[];
+    var narrativeIssues = issues.filter(function(i){return i.severity==='HIGH'&&i.fix&&i.fix!=='None';});
+
+    if(narrativeIssues.length===0){
+      var r = issues.map(function(i){return {field:i.field,action:'Verified',detail:'No repair needed',status:'ok'};});
+      setLoading(false); setMessage('');
+      advance('revalidation', {repairs:r});
+      return;
+    }
+
+    var repairPrompt = 'You are repairing a grant application for Refined Recovery Network LLC.\n\nDetected issues:\n'+narrativeIssues.map(function(i,n){return (n+1)+'. '+i.field+': '+i.fix;}).join('\n')+'\n\nPlatform context: '+platformCtx+'\n\nFor each issue, generate a repair action. Return ONLY JSON array: [{field, action, generatedText, status}]\nstatus: "repaired" or "flagged_for_review"\nFor narrative issues generate actual text. For data issues (EIN, budget) set status to "flagged_for_review" and explain what data is needed.';
+
+    fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,system:'You are a grant writing repair engine. Return only valid JSON, no markdown.',messages:[{role:'user',content:repairPrompt}]})
+    }).then(function(r){return r.json();})
+    .then(function(d){
+      var text = (d.content&&d.content[0]&&d.content[0].text)||'[]';
+      var repairs;
+      try{ repairs = JSON.parse(text.replace(/```json|```/g,'').trim()); }
+      catch(e){ repairs = narrativeIssues.map(function(i){return {field:i.field,action:'Flagged',detail:i.fix,status:'flagged_for_review'};}); }
+      log('REPAIR_COMPLETE',repairs.length+' repairs applied. Repaired: '+repairs.filter(function(r){return r.status==='repaired';}).length+'. Flagged: '+repairs.filter(function(r){return r.status==='flagged_for_review';}).length,'INFO');
+      // Apply repaired narrative to draft
+      repairs.forEach(function(rep){
+        if(rep.status==='repaired'&&rep.generatedText){
+          var dkey = 'rrn_grant_draft_'+(grant?grant.id:'new');
+          try{
+            var draft = JSON.parse(localStorage.getItem(dkey)||'{}');
+            var fieldMap = {'Narrative Quality Reviewer':'projectSummary','Program Fit Analyst':'primaryGoal','Financial Reviewer':'budgetNarrative'};
+            var f = fieldMap[rep.field];
+            if(f && !draft[f]){ draft[f]=rep.generatedText; localStorage.setItem(dkey,JSON.stringify(draft)); log('REPAIR_APPLIED','Field "'+f+'" auto-filled from repair engine'); }
+          }catch(e){}
+        }
+      });
+      setLoading(false); setMessage('');
+      advance('revalidation', {repairs:repairs});
+    }).catch(function(){
+      var r = (state.issues||[]).map(function(i){return {field:i.field,action:'Flagged',detail:i.fix,status:'flagged_for_review'};});
+      setLoading(false); setMessage('');
+      advance('revalidation', {repairs:r});
+    });
+  }
+
+  // ── MODE 7: Re-validation ────────────────────────────────────────────────
+  function runRevalidation(){
+    log('REVALIDATION_START','Re-running simulation after repair (cycle '+(state.cycle+1)+')');
+    advance('simulation', {cycle:(state.cycle||0)+1});
+    runSimulation();
+  }
+
+  // ── MODE 8: Final Submission Gate ────────────────────────────────────────
+  function finalSubmit(){
+    var decision = {ts:new Date().toISOString(),decision:'SUBMITTED',score:state.readinessScore,by:'Chuck Edwards (L0)',cycle:state.cycle};
+    log('FINAL_SUBMIT','Application marked ready for submission. Score: '+state.readinessScore+'%','INFO');
+    advance('final', {finalDecision:decision});
+    // Open email draft with submission notification
+    var g = grant || {};
+    var subject = encodeURIComponent('Grant Application Submission — '+g.name+' — Refined Recovery Network');
+    var body = encodeURIComponent('Dear Grant Team,\n\nPlease find enclosed the grant application from Refined Recovery Network LLC for '+g.name+'.\n\nOrganization: Refined Recovery Network LLC\nCEO: Charles L. Edwards Jr.\nPhone: 225-333-0330\nEmail: bro.chuck.edwards@gmail.com\n\nApplication readiness score: '+state.readinessScore+'%\nSimulation cycles completed: '+state.cycle+'\n\nThank you for your consideration.\n\nCharles L. Edwards Jr.\nCEO, Refined Recovery Network LLC');
+    window.open('https://mail.google.com/mail/?view=cm&fs=1&su='+subject+'&body='+body+'&from=bro.chuck.edwards%40gmail.com','_blank');
+    toast && toast({icon:'\uD83D\uDE80',title:'Submission email opened in Gmail — attach your packet and send'});
+  }
+
+  // ── RENDER ────────────────────────────────────────────────────────────────
+  var scoreColor = state.readinessScore>=85?'var(--l5)':state.readinessScore>=65?'var(--gold)':'#fc8181';
+  var modeLabels = {dashboard:'Signal Intake',review:'Caleb Review',gate:'Readiness Gate',simulation:'Simulation',diagnostic:'Diagnostics',repair:'Auto-Repair',revalidation:'Re-Validation',final:'Submission Gate'};
+  var modeOrder  = ['dashboard','review','gate','simulation','diagnostic','repair','revalidation','final'];
+  var modeIdx    = modeOrder.indexOf(state.mode);
+
+  return React.createElement('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',zIndex:10000,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'1rem',overflowY:'auto'}},
+    React.createElement('div',{style:{background:'var(--dbg)',borderRadius:12,width:'100%',maxWidth:900,padding:'1.5rem',position:'relative',margin:'auto'}},
+
+      // Header
+      React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'1rem'}},
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:'0.65rem',fontWeight:700,color:'var(--l2)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:'0.15rem'}},'\uD83E\uDDE0 CALEB GRANT OS — SIMULATION PIPELINE'),
+          React.createElement('div',{style:{fontWeight:700,color:'var(--dtxt)',fontSize:'1.05rem'}},grant?grant.name:'Grant Application'),
+          React.createElement('div',{style:{fontSize:'0.72rem',color:'var(--dmuted)',marginTop:'0.1rem'}},grant?grant.agency+' \xB7 '+grant.type:'')
+        ),
+        React.createElement('button',{onClick:onClose,style:{background:'none',border:'none',color:'var(--dmuted)',cursor:'pointer',fontSize:'1.5rem',padding:'0 0.25rem'}},'\u2715')
+      ),
+
+      // Pipeline progress
+      React.createElement('div',{style:{display:'flex',gap:'0',marginBottom:'1.25rem',overflowX:'auto'}},
+        modeOrder.map(function(m,i){
+          var past    = i < modeIdx;
+          var current = i === modeIdx;
+          var future  = i > modeIdx;
+          return React.createElement('div',{key:m,style:{display:'flex',alignItems:'center',flex:i<modeOrder.length-1?'1':'none'}},
+            React.createElement('div',{style:{padding:'0.3rem 0.5rem',borderRadius:4,fontSize:'0.6rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.06em',whiteSpace:'nowrap',
+              background:current?'var(--l2)':past?'rgba(91,196,110,0.15)':'var(--dsub)',
+              color:current?'#fff':past?'var(--l5)':'var(--dmuted)',
+              border:current?'none':past?'1px solid rgba(91,196,110,0.3)':'1px solid var(--bdr2)'}},
+              (past?'\u2713 ':current?'\u25B6 ':'')+modeLabels[m]
+            ),
+            i<modeOrder.length-1&&React.createElement('div',{style:{flex:1,height:2,background:past?'var(--l5)':'var(--dsub)',minWidth:'8px'}})
+          );
+        })
+      ),
+
+      // Score + cycle
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'0.5rem',marginBottom:'1rem'}},
+        [{l:'Readiness Score',v:state.readinessScore+'%',c:scoreColor},
+         {l:'Simulation Cycle',v:state.cycle||0,c:'var(--l2)'},
+         {l:'Issues Found',v:(state.issues||[]).length,c:(state.issues||[]).length>0?'var(--gold)':'var(--l5)'},
+         {l:'Repairs Applied',v:(state.repairs||[]).filter(function(r){return r.status==='repaired';}).length,c:'var(--l2)'}
+        ].map(function(s){ return React.createElement('div',{key:s.l,style:{padding:'0.6rem',background:'var(--bg3)',borderRadius:6,border:'1px solid var(--bdr2)',textAlign:'center'}},
+          React.createElement('div',{style:{fontSize:'0.62rem',color:'var(--dmuted)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:'0.15rem'}},s.l),
+          React.createElement('div',{style:{fontSize:'1.1rem',fontWeight:700,color:s.c,fontFamily:'var(--font-mono)'}},s.v)
+        ); })
+      ),
+
+      // Loading state
+      loading && React.createElement('div',{style:{padding:'1.5rem',textAlign:'center',color:'var(--gold)',fontSize:'0.88rem',fontWeight:600}},
+        React.createElement('div',{style:{fontSize:'1.5rem',marginBottom:'0.5rem'}},'\u23F3'),message
+      ),
+
+      // ── MODE CONTENT ──────────────────────────────────────────────────────
+      !loading && state.mode==='dashboard' && React.createElement('div',null,
+        React.createElement('div',{style:{padding:'1.25rem',background:'rgba(45,212,192,0.06)',border:'1px solid rgba(45,212,192,0.2)',borderRadius:8,marginBottom:'1rem'}},
+          React.createElement('div',{style:{fontWeight:700,color:'var(--l2)',marginBottom:'0.5rem',fontSize:'0.9rem'}},'\uD83D\uDCE1 Grant opportunity detected'),
+          React.createElement('div',{style:{fontSize:'0.82rem',color:'var(--dmuted)',lineHeight:1.6}},
+            grant ? 'Reviewing: '+grant.name+' from '+grant.agency+'. Fit score: '+grant.grantFit+'%. Caleb will analyze your draft, score alignment, and identify missing fields.'
+                  : 'No grant selected. Return to the Grant Catalog and click "Launch OS" on a grant.'
+          )
+        ),
+        grant && React.createElement('button',{onClick:runDashboard,className:'btn-primary',style:{padding:'0.65rem 1.5rem',fontSize:'0.88rem',fontWeight:700}},'\uD83D\uDD0D Scan & Analyze Application')
+      ),
+
+      !loading && state.mode==='review' && React.createElement('div',null,
+        React.createElement('div',{style:{fontWeight:700,color:'var(--dtxt)',fontSize:'0.9rem',marginBottom:'0.75rem'}},'\uD83E\uDDE0 Caleb Analysis Report'),
+        // Fit summary
+        React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem',marginBottom:'1rem'}},
+          React.createElement('div',{style:{padding:'0.85rem',background:'var(--bg3)',borderRadius:8,border:'1px solid var(--bdr2)'}},
+            React.createElement('div',{style:{fontSize:'0.65rem',color:'var(--dmuted)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:'0.35rem'}},'Grant Overview'),
+            grant && [['Funder',grant.agency],['Type',grant.type],['Range',grant.amount],['Cycle',grant.cycle],['Fit',grant.grantFit+'%']].map(function(r){
+              return React.createElement('div',{key:r[0],style:{display:'flex',justifyContent:'space-between',fontSize:'0.78rem',padding:'0.2rem 0',borderBottom:'1px solid var(--bdr)'}},
+                React.createElement('span',{style:{color:'var(--dmuted)'}},r[0]),
+                React.createElement('span',{style:{fontWeight:600,color:'var(--dtxt)'}},r[1])
+              );
+            })
+          ),
+          React.createElement('div',{style:{padding:'0.85rem',background:'var(--bg3)',borderRadius:8,border:'1px solid var(--bdr2)'}},
+            React.createElement('div',{style:{fontSize:'0.65rem',color:'var(--dmuted)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:'0.35rem'}},'Missing / At Risk'),
+            (state.issues||[]).length===0
+              ? React.createElement('div',{style:{color:'var(--l5)',fontSize:'0.82rem',marginTop:'0.5rem'}},'\u2705 No critical gaps detected')
+              : (state.issues||[]).map(function(issue,i){
+                  var sc = issue.severity==='HIGH'?'#fc8181':issue.severity==='MEDIUM'?'#c8913a':'var(--gold)';
+                  return React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',fontSize:'0.75rem',padding:'0.2rem 0',borderBottom:'1px solid var(--bdr)'}},
+                    React.createElement('span',null,issue.field),
+                    React.createElement('span',{style:{fontWeight:700,color:sc}},issue.severity)
+                  );
+                })
+          )
+        ),
+        // Caleb readiness statement
+        React.createElement('div',{style:{padding:'0.85rem',background:'rgba(200,145,58,0.06)',borderLeft:'3px solid rgba(200,145,58,0.4)',borderRadius:'0 8px 8px 0',marginBottom:'1rem',fontSize:'0.82rem',color:'var(--dtxt)',lineHeight:1.7}},
+          React.createElement('strong',{style:{color:'var(--gold)'}},'Caleb: '),
+          state.readinessScore>=85
+            ? 'Application is in strong shape at '+state.readinessScore+'%. The draft covers the essential requirements. I recommend proceeding to simulation to identify any funder-specific issues before submission.'
+            : state.readinessScore>=65
+              ? 'Application is at '+state.readinessScore+'% readiness. '+(state.issues||[]).filter(function(i){return i.severity==='HIGH';}).length+' critical items need attention. We can run simulation now and the repair engine will patch what it can.'
+              : 'Application is at '+state.readinessScore+'% — significant gaps exist. '+( state.issues||[]).filter(function(i){return i.severity==='HIGH';}).length+' critical fields are missing. Real talk: the repair engine will help but you need to open the Grant Builder and fill those sections.'
+        ),
+        React.createElement('div',{style:{display:'flex',gap:'0.75rem'}},
+          React.createElement('button',{onClick:function(){advance('gate');},className:'btn-primary',style:{padding:'0.6rem 1.25rem',fontSize:'0.85rem',fontWeight:700}},'\u2192 Proceed to Readiness Gate'),
+          React.createElement('button',{onClick:function(){advance('dashboard');},style:{padding:'0.6rem 1rem',borderRadius:8,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dmuted)',cursor:'pointer',fontSize:'0.83rem'}},'Re-scan')
+        )
+      ),
+
+      !loading && state.mode==='gate' && React.createElement('div',null,
+        React.createElement('div',{style:{padding:'1.25rem',background:state.readinessScore>=65?'rgba(45,212,192,0.06)':'rgba(252,129,129,0.06)',border:'1px solid '+(state.readinessScore>=65?'rgba(45,212,192,0.25)':'rgba(252,129,129,0.25)'),borderRadius:8,marginBottom:'1rem',textAlign:'center'}},
+          React.createElement('div',{style:{fontSize:'2rem',marginBottom:'0.5rem'}},state.readinessScore>=85?'\uD83D\uDFE2':state.readinessScore>=65?'\uD83D\uDFE1':'\uD83D\uDD34'),
+          React.createElement('div',{style:{fontWeight:700,fontSize:'1.1rem',color:scoreColor,marginBottom:'0.35rem'}},state.readinessScore+'% Ready'),
+          React.createElement('div',{style:{fontSize:'0.82rem',color:'var(--dmuted)',lineHeight:1.6,maxWidth:'500px',margin:'0 auto'}},
+            'Draft is ready for simulation review. Running simulation will dispatch 5 reviewer agents that will identify compliance, financial, narrative, fit, and documentation issues. The repair engine will then address what it can automatically.')
+        ),
+        React.createElement('div',{style:{fontSize:'0.82rem',fontWeight:700,color:'var(--dtxt)',marginBottom:'0.75rem',textAlign:'center'}},'Do you want to proceed to simulation?'),
+        React.createElement('div',{style:{display:'flex',gap:'0.75rem',justifyContent:'center'}},
+          React.createElement('button',{onClick:proceedToSimulation,className:'btn-primary',style:{padding:'0.65rem 1.75rem',fontSize:'0.9rem',fontWeight:700}},'YES \u2014 Run Simulation'),
+          React.createElement('button',{onClick:function(){advance('review');},style:{padding:'0.65rem 1.25rem',borderRadius:8,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dmuted)',cursor:'pointer',fontSize:'0.85rem'}},'NO \u2014 Back to Review')
+        )
+      ),
+
+      !loading && state.mode==='diagnostic' && React.createElement('div',null,
+        React.createElement('div',{style:{fontWeight:700,color:'var(--dtxt)',fontSize:'0.9rem',marginBottom:'0.75rem'}},'\uD83D\uDD0D Simulation Results \u2014 Cycle '+(state.cycle)),
+        // Reviewer results
+        (state.simResults||[]).map(function(r,i){
+          var sc = r.status==='FAIL'?'#fc8181':r.status==='PASS_WITH_WARNINGS'?'#c8913a':'var(--l5)';
+          var ic = r.status==='FAIL'?'\u274C':r.status==='PASS_WITH_WARNINGS'?'\u26A0\uFE0F':'\u2705';
+          return React.createElement('div',{key:i,style:{padding:'0.75rem',background:'var(--bg3)',border:'1px solid var(--bdr2)',borderLeft:'3px solid '+sc,borderRadius:'0 6px 6px 0',marginBottom:'0.5rem'}},
+            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.25rem'}},
+              React.createElement('span',{style:{fontSize:'0.78rem',fontWeight:700,color:'var(--dtxt)'}},ic+' '+r.role),
+              React.createElement('span',{style:{fontSize:'0.65rem',fontWeight:700,color:sc,letterSpacing:'0.08em'}},r.status)
+            ),
+            React.createElement('div',{style:{fontSize:'0.75rem',color:'var(--dmuted)',lineHeight:1.5}},r.message),
+            r.fix && r.fix!=='None' && React.createElement('div',{style:{fontSize:'0.72rem',color:'var(--l2)',marginTop:'0.25rem'}},'\uD83D\uDD27 Fix: '+r.fix)
+          );
+        }),
+        React.createElement('div',{style:{display:'flex',gap:'0.75rem',marginTop:'0.75rem'}},
+          React.createElement('button',{onClick:runDiagnostic,className:'btn-primary',style:{padding:'0.55rem 1.25rem',fontSize:'0.85rem',fontWeight:700}},'\uD83D\uDD0D Run Full Diagnostic'),
+          React.createElement('button',{onClick:function(){advance('final');},style:{padding:'0.55rem 1rem',borderRadius:8,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dmuted)',cursor:'pointer',fontSize:'0.83rem'}},'Skip to Final Gate')
+        )
+      ),
+
+      !loading && state.mode==='repair' && React.createElement('div',null,
+        React.createElement('div',{style:{fontWeight:700,color:'var(--dtxt)',fontSize:'0.9rem',marginBottom:'0.75rem'}},'\uD83D\uDD27 Auto-Repair Plan \u2014 '+(state.issues||[]).length+' issues'),
+        (state.issues||[]).map(function(issue,i){
+          var sc = issue.severity==='HIGH'?'#fc8181':issue.severity==='MEDIUM'?'#c8913a':'var(--gold)';
+          return React.createElement('div',{key:i,style:{padding:'0.6rem 0.75rem',background:'var(--bg3)',borderLeft:'3px solid '+sc,borderRadius:'0 6px 6px 0',marginBottom:'0.4rem',fontSize:'0.78rem'}},
+            React.createElement('div',{style:{fontWeight:700,color:sc}},issue.severity+': '+issue.field),
+            React.createElement('div',{style:{color:'var(--dmuted)',marginTop:'0.15rem'}},issue.fix)
+          );
+        }),
+        React.createElement('div',{style:{padding:'0.65rem 0.85rem',background:'rgba(45,212,192,0.06)',border:'1px solid rgba(45,212,192,0.2)',borderRadius:6,marginBottom:'0.75rem',fontSize:'0.78rem',color:'var(--l2)'}},
+          '\uD83E\uDD16 Caleb will repair narrative sections automatically. Data fields (EIN, budget amounts) will be flagged for your manual completion.'),
+        React.createElement('button',{onClick:runRepair,className:'btn-primary',style:{padding:'0.6rem 1.25rem',fontSize:'0.85rem',fontWeight:700}},'\uD83D\uDD27 Run Auto-Repair Engine')
+      ),
+
+      !loading && state.mode==='revalidation' && React.createElement('div',null,
+        React.createElement('div',{style:{fontWeight:700,color:'var(--dtxt)',fontSize:'0.9rem',marginBottom:'0.75rem'}},'\uD83D\uDCCB Repair Report'),
+        (state.repairs||[]).map(function(r,i){
+          var sc = r.status==='repaired'?'var(--l5)':'var(--gold)';
+          var ic = r.status==='repaired'?'\u2705':'\u26A0\uFE0F';
+          return React.createElement('div',{key:i,style:{padding:'0.6rem 0.75rem',background:'var(--bg3)',border:'1px solid var(--bdr2)',borderRadius:6,marginBottom:'0.4rem',fontSize:'0.78rem'}},
+            React.createElement('div',{style:{fontWeight:700,color:sc}},ic+' '+r.field),
+            React.createElement('div',{style:{color:'var(--dmuted)',marginTop:'0.15rem'}},r.detail||r.action)
+          );
+        }),
+        React.createElement('div',{style:{display:'flex',gap:'0.75rem',marginTop:'0.75rem'}},
+          React.createElement('button',{onClick:runRevalidation,className:'btn-primary',style:{padding:'0.55rem 1.25rem',fontSize:'0.85rem',fontWeight:700}},'\uD83D\uDD01 Re-run Simulation (Cycle '+(( state.cycle||0)+1)+')'),
+          React.createElement('button',{onClick:function(){advance('final');},style:{padding:'0.55rem 1rem',borderRadius:8,border:'none',background:'var(--l5)',color:'#fff',cursor:'pointer',fontSize:'0.85rem',fontWeight:700}},'\u2705 Proceed to Final Gate')
+        )
+      ),
+
+      !loading && state.mode==='final' && React.createElement('div',null,
+        state.finalDecision
+          ? React.createElement('div',{style:{padding:'1.5rem',background:'rgba(91,196,110,0.08)',border:'1px solid rgba(91,196,110,0.3)',borderRadius:8,textAlign:'center'}},
+              React.createElement('div',{style:{fontSize:'2rem',marginBottom:'0.5rem'}},'\uD83D\uDE80'),
+              React.createElement('div',{style:{fontWeight:700,fontSize:'1.1rem',color:'var(--l5)',marginBottom:'0.25rem'}},'Application Marked for Submission'),
+              React.createElement('div',{style:{fontSize:'0.8rem',color:'var(--dmuted)'}},'Approved by '+state.finalDecision.by+' \xB7 Score: '+state.finalDecision.score+'% \xB7 Cycles: '+state.cycle),
+              React.createElement('div',{style:{marginTop:'0.75rem',fontSize:'0.82rem',color:'var(--dtxt)'}},'Gmail submission email was opened. Attach your application packet and send.')
+            )
+          : React.createElement('div',null,
+              React.createElement('div',{style:{padding:'1.25rem',background:'rgba(45,212,192,0.06)',border:'1px solid rgba(45,212,192,0.25)',borderRadius:8,marginBottom:'1rem',textAlign:'center'}},
+                React.createElement('div',{style:{fontSize:'2rem',marginBottom:'0.5rem'}},'\uD83D\uDFE2'),
+                React.createElement('div',{style:{fontWeight:700,fontSize:'1.1rem',color:'var(--l2)',marginBottom:'0.25rem'}},'All Systems Green'),
+                React.createElement('div',{style:{fontSize:'0.82rem',color:'var(--dmuted)'}},'Readiness: '+state.readinessScore+'% \xB7 Simulation cycles: '+state.cycle+' \xB7 Repairs applied: '+(state.repairs||[]).filter(function(r){return r.status==='repaired';}).length)
+              ),
+              React.createElement('div',{style:{fontWeight:700,color:'var(--dtxt)',textAlign:'center',marginBottom:'0.85rem',fontSize:'0.9rem'}},'Ready to submit final grant application?'),
+              React.createElement('div',{style:{display:'flex',gap:'0.75rem',justifyContent:'center'}},
+                React.createElement('button',{onClick:finalSubmit,style:{padding:'0.7rem 2rem',borderRadius:8,border:'none',background:'var(--l5)',color:'#fff',cursor:'pointer',fontSize:'0.9rem',fontWeight:700}},'\uD83D\uDE80 SUBMIT — Open Gmail'),
+                React.createElement('button',{onClick:runRevalidation,style:{padding:'0.7rem 1.25rem',borderRadius:8,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--l2)',cursor:'pointer',fontSize:'0.85rem',fontWeight:600}},'\uD83D\uDD01 Review Again'),
+                React.createElement('button',{onClick:function(){advance('dashboard',{simResults:[],issues:[],repairs:[],finalDecision:null,cycle:0,readinessScore:0});},style:{padding:'0.7rem 1.1rem',borderRadius:8,border:'1px solid rgba(252,129,129,0.3)',background:'rgba(252,129,129,0.06)',color:'#fc8181',cursor:'pointer',fontSize:'0.85rem'}},'Abort')
+              )
+            )
+      ),
+
+      // Audit trail
+      audit.length > 0 && React.createElement('div',{style:{marginTop:'1.25rem',borderTop:'1px solid var(--bdr)',paddingTop:'0.75rem'}},
+        React.createElement('div',{style:{fontSize:'0.65rem',fontWeight:700,color:'var(--dmuted)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:'0.5rem'}},'\uD83D\uDCCB Audit Trail \u2014 '+audit.length+' entries'),
+        React.createElement('div',{style:{maxHeight:'120px',overflowY:'auto'}},
+          audit.slice(0,15).map(function(e,i){
+            var lc = e.level==='WARN'?'#c8913a':e.level==='ERROR'?'#fc8181':'var(--dmuted)';
+            return React.createElement('div',{key:i,style:{fontSize:'0.65rem',color:lc,padding:'0.15rem 0',borderBottom:'1px solid var(--bdr)',display:'flex',gap:'0.5rem'}},
+              React.createElement('span',{style:{color:'var(--dmuted)',flexShrink:0}},new Date(e.ts).toLocaleTimeString()),
+              React.createElement('span',{style:{fontWeight:600,flexShrink:0}},e.action),
+              React.createElement('span',null,e.detail)
+            );
+          })
+        )
+      )
+    )
+  );
+}
+
+function GrantEmailCenter({ platform, update, toast, session, setActive }) {
+  var isL0 = (session && session.level === 0);
+  var _sv = React.useState('queue'); var view = _sv[0]; var setView = _sv[1];
+  var _sc = React.useState(null);   var compose = _sc[0]; var setCompose = _sc[1];
+  var _sa = React.useState(false);  var aiLoading = _sa[0]; var setAiLoading = _sa[1];
+  var _sel = React.useState([]);    var selected = _sel[0]; var setSelected = _sel[1];
+  var _si = React.useState({        // incoming email form
+    from:'', subject:'', body:'', receivedAt: new Date().toISOString()
+  }); var incoming = _si[0]; var setIncoming = _si[1];
+  var _ss = React.useState('log'); var subView = _ss[0]; var setSubView = _ss[1];
+
+  var QUEUE_KEY = 'rrn_grant_email_queue';
+  var SENT_KEY  = 'rrn_grant_email_sent';
+  var LOG_KEY   = 'rrn_grant_email_log';
+
+  function getQueue(){ try{ return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); }catch(e){ return []; } }
+  function getSent(){  try{ return JSON.parse(localStorage.getItem(SENT_KEY)||'[]');  }catch(e){ return []; } }
+  function getLog(){   try{ return JSON.parse(localStorage.getItem(LOG_KEY)||'[]');   }catch(e){ return []; } }
+  function saveQueue(q){ try{ localStorage.setItem(QUEUE_KEY,JSON.stringify(q)); }catch(e){} }
+  function saveSent(s){  try{ localStorage.setItem(SENT_KEY,JSON.stringify(s));  }catch(e){} }
+  function saveLog(l){   try{ localStorage.setItem(LOG_KEY,JSON.stringify(l));   }catch(e){} }
+
+  var queue = getQueue();
+  var sent  = getSent();
+  var log   = getLog();
+  var pendingCount = queue.filter(function(e){ return e.status==='pending'; }).length;
+
+  // ── AI draft response to funder email ────────────────────────────────────
+  function draftResponse(emailId, funderEmail, subject, body){
+    var apiKey = window.RRN_ANTHROPIC_KEY || localStorage.getItem('rrn_anthropic_key') || '';
+    if(!apiKey){
+      toast && toast({icon:'⚠️',title:'Set Caleb API key to use AI drafting. Type setCalebKey("sk-ant-...") in console.'});
+      return;
+    }
+    setAiLoading(emailId);
+
+    var m = platform.members || [];
+    var active = m.filter(function(x){ return x.status==='ACTIVE'; }).length;
+    var ctx = 'Refined Recovery Network LLC. Contact: Charles L. Edwards Jr., CEO. Email: bro.chuck.edwards@gmail.com. Phone: 225-333-0330. Address: 12883 HWY 190 West, Port Allen, Louisiana 70767. Active members: '+active+'. Faith-based Apostolic Pentecostal recovery ministry serving Louisiana.';
+
+    var sys = 'You are drafting a professional email response on behalf of Charles L. Edwards Jr., CEO of Refined Recovery Network LLC, a faith-based recovery ministry in Louisiana. Write in a professional, warm, direct tone. No empty pleasantries. Be specific. Sign as Charles L. Edwards Jr., CEO, Refined Recovery Network LLC. Max 200 words.';
+
+    var prompt = 'Draft a response to this funder/grant email.\n\nFROM: '+funderEmail+'\nSUBJECT: '+subject+'\nEMAIL BODY:\n'+body+'\n\nOrganization context: '+ctx+'\n\nWrite a professional response that: (1) acknowledges their email specifically, (2) answers any questions or provides requested information, (3) advances the grant relationship, (4) includes a clear next step.';
+
+    fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,system:sys,messages:[{role:'user',content:prompt}]})
+    }).then(function(r){ return r.json(); })
+    .then(function(d){
+      var draft = (d.content&&d.content[0]&&d.content[0].text)||'';
+      if(draft){
+        var q = getQueue();
+        var idx = q.findIndex(function(e){ return e.id===emailId; });
+        if(idx>=0){
+          q[idx].aiDraft = draft;
+          q[idx].draftedAt = new Date().toISOString();
+          q[idx].status = 'pending';
+          saveQueue(q);
+        }
+        toast && toast({icon:'✨',title:'Caleb drafted a response — review and approve'});
+      }
+      setAiLoading(null);
+    }).catch(function(){
+      setAiLoading(null);
+      toast && toast({icon:'❌',title:'AI drafting failed — check API key'});
+    });
+  }
+
+  // ── Log incoming funder email + trigger AI draft ──────────────────────────
+  function logIncoming(){
+    if(!incoming.from || !incoming.subject || !incoming.body){
+      toast && toast({icon:'⚠️',title:'Fill in sender, subject, and email body'});
+      return;
+    }
+    var entry = {
+      id: 'email_'+Date.now(),
+      type: 'incoming',
+      from: incoming.from,
+      subject: incoming.subject,
+      body: incoming.body,
+      receivedAt: incoming.receivedAt || new Date().toISOString(),
+      status: 'pending',
+      aiDraft: null,
+      draftedAt: null,
+      approvedAt: null,
+      approvedBy: null,
+    };
+    var q = getQueue();
+    q.unshift(entry);
+    saveQueue(q);
+    setIncoming({from:'',subject:'',body:'',receivedAt:new Date().toISOString()});
+    setSubView('queue');
+    toast && toast({icon:'📧',title:'Email logged — Caleb will draft a response'});
+    // Auto-trigger AI draft
+    draftResponse(entry.id, entry.from, entry.subject, entry.body);
+  }
+
+  // ── Approve and open Gmail ────────────────────────────────────────────────
+  function approveAndSend(emailId){
+    if(!isL0){
+      toast && toast({icon:'🔒',title:'L0 approval required — only Chuck Edwards can approve grant correspondence'});
+      return;
+    }
+    var q = getQueue();
+    var entry = q.find(function(e){ return e.id===emailId; });
+    if(!entry || !entry.aiDraft){
+      toast && toast({icon:'⚠️',title:'No draft to approve — run AI draft first'});
+      return;
+    }
+
+    // Mark approved
+    var updated = q.map(function(e){
+      return e.id===emailId ? Object.assign({},e,{status:'approved',approvedAt:new Date().toISOString(),approvedBy:'Chuck Edwards (L0)'}) : e;
+    });
+    saveQueue(updated);
+
+    // Move to sent log
+    var sentEntry = Object.assign({},entry,{status:'approved',sentAt:new Date().toISOString()});
+    var s = getSent(); s.unshift(sentEntry); saveSent(s.slice(0,100));
+    var l = getLog();  l.unshift({action:'approved',emailId:emailId,by:'Chuck Edwards',at:new Date().toISOString(),subject:entry.subject}); saveLog(l.slice(0,200));
+
+    // Build mailto and open Gmail
+    var to = entry.from;
+    var reSubject = entry.subject.startsWith('Re:') ? entry.subject : 'Re: '+entry.subject;
+    var body = entry.aiDraft;
+    var gmailUrl = 'https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(to)+'&su='+encodeURIComponent(reSubject)+'&body='+encodeURIComponent(body)+'&from=bro.chuck.edwards%40gmail.com';
+    window.open(gmailUrl, '_blank');
+    toast && toast({icon:'📤',title:'Approved — Gmail opened with draft ready to send'});
+  }
+
+
+  function toggleSelect(id){ setSelected(function(p){ return p.indexOf(id)>=0?p.filter(function(x){return x!==id;}):p.concat([id]); }); }
+  function selectAllDrafted(){ setSelected(getQueue().filter(function(e){return e.status==='pending'&&e.aiDraft;}).map(function(e){return e.id;})); }
+  function clearSelection(){ setSelected([]); }
+
+  function approveAllSelected(){
+    if(!isL0){ toast&&toast({icon:'(lock)',title:'L0 approval required'}); return; }
+    if(selected.length===0){ toast&&toast({icon:'(!)',title:'Select emails first'}); return; }
+    var q=getQueue();
+    var toApprove=q.filter(function(e){ return selected.indexOf(e.id)>=0&&e.aiDraft; });
+    var updated=q.map(function(e){ return selected.indexOf(e.id)>=0&&e.aiDraft?Object.assign({},e,{status:'approved',approvedAt:new Date().toISOString(),approvedBy:'Chuck Edwards (L0)'}):e; });
+    saveQueue(updated);
+    var s=getSent(); toApprove.forEach(function(e){ s.unshift(Object.assign({},e,{status:'approved',sentAt:new Date().toISOString()})); }); saveSent(s.slice(0,100));
+    toApprove.forEach(function(entry,i){
+      setTimeout(function(){
+        window.open('https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(entry.from)+'&su='+encodeURIComponent(entry.subject.startsWith('Re:')?entry.subject:'Re: '+entry.subject)+'&body='+encodeURIComponent(entry.aiDraft)+'&from=bro.chuck.edwards%40gmail.com','_blank');
+      }, i*900);
+    });
+    setSelected([]);
+    toast&&toast({icon:'OK',title:toApprove.length+' approved - Gmail opening for each'});
+  }
+
+  function draftAllPending(){
+    var needsDraft=getQueue().filter(function(e){return e.status==='pending'&&!e.aiDraft;});
+    if(needsDraft.length===0){ toast&&toast({icon:'i',title:'All emails already drafted'}); return; }
+    needsDraft.forEach(function(entry,i){ setTimeout(function(){draftResponse(entry.id,entry.from,entry.subject,entry.body);},i*1500); });
+    toast&&toast({icon:'*',title:'Drafting '+needsDraft.length+' emails with Caleb AI'});
+  }
+
+  // ── Reject draft ─────────────────────────────────────────────────────────
+  function rejectDraft(emailId){
+    var q = getQueue().map(function(e){
+      return e.id===emailId ? Object.assign({},e,{status:'rejected',aiDraft:null}) : e;
+    });
+    saveQueue(q);
+    toast && toast({icon:'🚫',title:'Draft rejected — re-draft or compose manually'});
+  }
+
+  // ── Edit draft ───────────────────────────────────────────────────────────
+  function editDraft(emailId, newText){
+    var q = getQueue().map(function(e){
+      return e.id===emailId ? Object.assign({},e,{aiDraft:newText}) : e;
+    });
+    saveQueue(q);
+  }
+
+  // ── Compose outreach email ────────────────────────────────────────────────
+  function sendOutreach(to, subject, body){
+    var gmailUrl = 'https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(to)+'&su='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body)+'&from=bro.chuck.edwards%40gmail.com';
+    window.open(gmailUrl, '_blank');
+    var l = getLog(); l.unshift({action:'outreach_sent',to:to,subject:subject,by:'Chuck Edwards',at:new Date().toISOString()}); saveLog(l.slice(0,200));
+    toast && toast({icon:'📤',title:'Gmail opened — review and send'});
+  }
+
+  var inp_s = {width:'100%',padding:'0.5rem 0.7rem',borderRadius:6,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dtxt)',fontSize:'0.82rem',boxSizing:'border-box'};
+  var ta_s  = Object.assign({},inp_s,{minHeight:'100px',resize:'vertical',fontFamily:'var(--font-body)',lineHeight:1.6});
+  var lbl_s = {display:'block',fontSize:'0.72rem',fontWeight:700,color:'var(--dtxt)',marginBottom:'0.25rem'};
+
+  // ── QueueItem ─────────────────────────────────────────────────────────────
+  function QueueItem({ entry, selected, onToggle }){
+    var _ed = React.useState(false); var editing = _ed[0]; var setEditing = _ed[1];
+    var _et = React.useState(entry.aiDraft||''); var editText = _et[0]; var setEditText = _et[1];
+    var statusColor = entry.status==='approved'?'var(--l5)':entry.status==='rejected'?'#fc8181':'var(--gold)';
+    var loading = aiLoading===entry.id;
+
+    return React.createElement('div',{className:'d-card',style:{marginBottom:'0.75rem',border:'1px solid '+(entry.status==='pending'&&entry.aiDraft?'rgba(200,145,58,0.3)':'var(--bdr)')}},
+      React.createElement('div',{className:'d-card-head',style:{justifyContent:'space-between'}},
+        React.createElement('div',{style:{flex:1,minWidth:0}},
+          React.createElement('div',{style:{fontSize:'0.65rem',color:'var(--dmuted)',marginBottom:'0.15rem'}},
+            'FROM: '+entry.from+' · '+new Date(entry.receivedAt).toLocaleDateString()),
+          React.createElement('div',{style:{fontWeight:700,color:'var(--dtxt)',fontSize:'0.88rem',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},entry.subject)
+        ),
+        React.createElement('span',{style:{fontSize:'0.65rem',fontWeight:700,color:statusColor,textTransform:'uppercase',letterSpacing:'0.08em',marginLeft:'0.75rem',flexShrink:0}},
+          entry.status==='pending'&&entry.aiDraft?'AWAITING APPROVAL':entry.status.toUpperCase())
+      ),
+      React.createElement('div',{className:'d-card-body'},
+        // Original email
+        React.createElement('div',{style:{padding:'0.6rem 0.75rem',background:'var(--bg3)',borderRadius:6,marginBottom:'0.75rem',fontSize:'0.78rem',color:'var(--dmuted)',maxHeight:'80px',overflowY:'auto',lineHeight:1.5}},
+          entry.body),
+        // AI Draft
+        entry.aiDraft && !editing && React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:'0.65rem',fontWeight:700,color:'var(--l2)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:'0.35rem'}},'✨ CALEB AI DRAFT'),
+          React.createElement('div',{style:{padding:'0.7rem 0.85rem',background:'rgba(45,212,192,0.06)',border:'1px solid rgba(45,212,192,0.2)',borderRadius:6,fontSize:'0.8rem',color:'var(--dtxt)',lineHeight:1.6,whiteSpace:'pre-wrap',marginBottom:'0.65rem'}},
+            entry.aiDraft)
+        ),
+        editing && React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:'0.65rem',fontWeight:700,color:'var(--gold)',textTransform:'uppercase',marginBottom:'0.35rem'}},'✏️ EDITING DRAFT'),
+          React.createElement('textarea',{value:editText,onChange:function(e){setEditText(e.target.value);},style:Object.assign({},ta_s,{minHeight:'140px',marginBottom:'0.5rem'})}),
+          React.createElement('div',{style:{display:'flex',gap:'0.5rem'}},
+            React.createElement('button',{onClick:function(){editDraft(entry.id,editText);setEditing(false);},style:{padding:'0.35rem 0.75rem',borderRadius:5,border:'none',background:'var(--l5)',color:'#fff',cursor:'pointer',fontSize:'0.78rem',fontWeight:700}},'Save Edit'),
+            React.createElement('button',{onClick:function(){setEditing(false);},style:{padding:'0.35rem 0.65rem',borderRadius:5,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dmuted)',cursor:'pointer',fontSize:'0.78rem'}},'Cancel')
+          )
+        ),
+        // Action buttons
+        entry.status === 'pending' && React.createElement('div',{style:{display:'flex',gap:'0.5rem',flexWrap:'wrap',marginTop:'0.25rem'}},
+          !entry.aiDraft && React.createElement('button',{
+            onClick:function(){draftResponse(entry.id,entry.from,entry.subject,entry.body);},
+            disabled:loading,
+            style:{padding:'0.4rem 0.9rem',borderRadius:6,border:'1px solid rgba(200,145,58,0.4)',background:'rgba(200,145,58,0.08)',color:'var(--gold)',cursor:loading?'wait':'pointer',fontSize:'0.8rem',fontWeight:600}
+          }, loading?'⏳ Drafting...':'✨ Draft with Caleb AI'),
+          entry.aiDraft && !editing && React.createElement('button',{
+            onClick:function(){setEditText(entry.aiDraft);setEditing(true);},
+            style:{padding:'0.4rem 0.75rem',borderRadius:6,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--l2)',cursor:'pointer',fontSize:'0.8rem',fontWeight:600}
+          },'✏️ Edit'),
+          entry.aiDraft && !editing && React.createElement('button',{
+            onClick:function(){draftResponse(entry.id,entry.from,entry.subject,entry.body);},
+            disabled:loading,
+            style:{padding:'0.4rem 0.75rem',borderRadius:6,border:'1px solid rgba(200,145,58,0.3)',background:'rgba(200,145,58,0.06)',color:'var(--gold)',cursor:'pointer',fontSize:'0.8rem'}
+          }, loading?'⏳':'🔄 Re-draft'),
+          entry.aiDraft && isL0 && React.createElement('button',{
+            onClick:function(){approveAndSend(entry.id);},
+            style:{padding:'0.4rem 0.9rem',borderRadius:6,border:'none',background:'var(--l5)',color:'#fff',cursor:'pointer',fontSize:'0.8rem',fontWeight:700}
+          },'✅ Approve & Open Gmail'),
+          entry.aiDraft && React.createElement('button',{
+            onClick:function(){rejectDraft(entry.id);},
+            style:{padding:'0.4rem 0.75rem',borderRadius:6,border:'1px solid rgba(252,129,129,0.3)',background:'rgba(252,129,129,0.06)',color:'#fc8181',cursor:'pointer',fontSize:'0.8rem'}
+          },'🚫 Reject')
+        ),
+        entry.status === 'approved' && React.createElement('div',{style:{fontSize:'0.72rem',color:'var(--l5)',marginTop:'0.25rem'}},
+          '✅ Approved by '+entry.approvedBy+' · '+new Date(entry.approvedAt).toLocaleString())
+      )
+    );
+  }
+
+  return React.createElement('div',null,
+    React.createElement('div',{className:'lvl-header',style:{'--acc':'var(--l2)'}},
+      React.createElement('div',{className:'lvh-tag'},'GRANT ENGINE'),
+      React.createElement('div',{className:'lvh-title'},'📧 Grant Email Command Center'),
+      React.createElement('div',{className:'lvh-sub'},'bro.chuck.edwards@gmail.com · Caleb AI drafts funder responses · L0 approval required · Opens Gmail to send')
+    ),
+
+    !isL0 && React.createElement('div',{style:{padding:'0.75rem 1rem',background:'rgba(252,129,129,0.08)',border:'1px solid rgba(252,129,129,0.3)',borderRadius:8,marginBottom:'1rem',fontSize:'0.82rem',color:'#fc8181',fontWeight:600}},
+      '🔒 Viewing only — L0 approval required to send any grant correspondence. Only Chuck Edwards (Platform Owner) can approve.'),
+
+    // Stats bar
+    React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'0.65rem',marginBottom:'1rem'}},
+      [{l:'Awaiting Approval',v:pendingCount,c:'var(--gold)'},
+       {l:'Approved & Sent',v:sent.length,c:'var(--l5)'},
+       {l:'Total Logged',v:queue.length,c:'var(--l2)'},
+       {l:'Gmail Account',v:'bro.chuck',c:'var(--dmuted)'}
+      ].map(function(m){ return React.createElement('div',{key:m.l,className:'d-card',style:{textAlign:'center',padding:'0.65rem'}},
+        React.createElement('div',{style:{fontSize:'1.1rem',fontWeight:700,color:m.c,fontFamily:'var(--font-mono)'}},m.v),
+        React.createElement('div',{style:{fontSize:'0.62rem',color:'var(--dmuted)',textTransform:'uppercase',letterSpacing:'0.06em',marginTop:'0.1rem'}},m.l)
+      ); })
+    ),
+
+    // Tab bar
+    React.createElement('div',{style:{display:'flex',gap:'0.4rem',marginBottom:'0.85rem',borderBottom:'1px solid var(--bdr)',paddingBottom:'0'}},
+      [['queue','📬 Approval Queue'+(pendingCount>0?' ('+pendingCount+')':'')],
+       ['log','📧 Log Incoming Email'],
+       ['outreach','✉️ Compose Outreach'],
+       ['sent','📤 Sent History']
+      ].map(function(t){ return React.createElement('button',{key:t[0],onClick:function(){setSubView(t[0]);},
+        style:{padding:'0.5rem 0.85rem',background:'none',border:'none',cursor:'pointer',fontSize:'0.8rem',fontWeight:subView===t[0]?700:500,
+          color:subView===t[0]?'var(--gold)':'var(--dmuted)',borderBottom:'2px solid '+(subView===t[0]?'var(--gold)':'transparent'),marginBottom:'-1px'}
+      },t[1]); })
+    ),
+
+    // APPROVAL QUEUE
+    subView==='queue' && React.createElement('div',null,
+      queue.length>0&&React.createElement('div',{style:{display:'flex',gap:'0.5rem',alignItems:'center',marginBottom:'0.65rem',padding:'0.55rem 0.75rem',background:'var(--bg3)',borderRadius:6,border:'1px solid var(--bdr2)',flexWrap:'wrap'}},
+        React.createElement('input',{type:'checkbox',checked:selected.length>0&&selected.length===queue.filter(function(e){return e.status==='pending'&&e.aiDraft;}).length,onChange:function(e){e.target.checked?selectAllDrafted():clearSelection();},style:{width:'15px',height:'15px',cursor:'pointer'}}),
+        React.createElement('span',{style:{fontSize:'0.72rem',color:'var(--dmuted)'}},selected.length>0?selected.length+' selected':'Select all with drafts'),
+        selected.length>0&&isL0&&React.createElement('button',{onClick:approveAllSelected,style:{padding:'0.32rem 0.8rem',borderRadius:5,border:'none',background:'var(--l5)',color:'#fff',cursor:'pointer',fontSize:'0.75rem',fontWeight:700}},'Approve ('+selected.length+') & Open Gmail'),
+        selected.length>0&&React.createElement('button',{onClick:clearSelection,style:{padding:'0.32rem 0.6rem',borderRadius:5,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dmuted)',cursor:'pointer',fontSize:'0.72rem'}},'Clear'),
+        React.createElement('div',{style:{flex:1}}),
+        queue.filter(function(e){return e.status==='pending'&&!e.aiDraft;}).length>0&&React.createElement('button',{onClick:draftAllPending,style:{padding:'0.32rem 0.8rem',borderRadius:5,border:'1px solid rgba(200,145,58,0.3)',background:'rgba(200,145,58,0.06)',color:'var(--gold)',cursor:'pointer',fontSize:'0.72rem',fontWeight:600}},'Draft All Pending')
+      ),
+      queue.length===0
+        ? React.createElement('div',{className:'d-card',style:{padding:'2rem',textAlign:'center',color:'var(--dmuted)'}},
+            React.createElement('div',{style:{fontSize:'1.5rem',marginBottom:'0.5rem'}},'📬'),
+            React.createElement('div',{style:{fontWeight:700,marginBottom:'0.25rem'}},'No emails in queue'),
+            React.createElement('div',{style:{fontSize:'0.8rem'}},'Use "Log Incoming Email" when a funder replies. Caleb will draft your response.')
+          )
+        : queue.map(function(e){ return React.createElement(QueueItem,{key:e.id,entry:e,selected:selected.indexOf(e.id)>=0,onToggle:toggleSelect}); })
+    ),
+
+    // LOG INCOMING
+    subView==='log' && React.createElement('div',{className:'d-card'},
+      React.createElement('div',{className:'d-card-head'},React.createElement('span',{className:'d-card-title'},'LOG INCOMING FUNDER EMAIL')),
+      React.createElement('div',{className:'d-card-body'},
+        React.createElement('div',{style:{fontSize:'0.78rem',color:'var(--dmuted)',marginBottom:'0.85rem',lineHeight:1.5}},'When a funder emails you, paste it here. Caleb will draft a response and queue it for your approval before anything is sent.'),
+        React.createElement('div',{style:{marginBottom:'0.65rem'}},
+          React.createElement('label',{style:lbl_s},'From (funder email) *'),
+          React.createElement('input',{type:'email',value:incoming.from,onChange:function(e){setIncoming(function(p){return Object.assign({},p,{from:e.target.value});});},style:inp_s,placeholder:'grants@samhsa.gov'})
+        ),
+        React.createElement('div',{style:{marginBottom:'0.65rem'}},
+          React.createElement('label',{style:lbl_s},'Subject *'),
+          React.createElement('input',{type:'text',value:incoming.subject,onChange:function(e){setIncoming(function(p){return Object.assign({},p,{subject:e.target.value});});},style:inp_s,placeholder:'Re: RCSP Grant Application — Refined Recovery Network'})
+        ),
+        React.createElement('div',{style:{marginBottom:'0.65rem'}},
+          React.createElement('label',{style:lbl_s},'Date Received'),
+          React.createElement('input',{type:'date',value:(incoming.receivedAt||'').split('T')[0],onChange:function(e){setIncoming(function(p){return Object.assign({},p,{receivedAt:e.target.value});});},style:inp_s})
+        ),
+        React.createElement('div',{style:{marginBottom:'0.85rem'}},
+          React.createElement('label',{style:lbl_s},'Email Body — paste the full email *'),
+          React.createElement('textarea',{value:incoming.body,onChange:function(e){setIncoming(function(p){return Object.assign({},p,{body:e.target.value});});},style:Object.assign({},ta_s,{minHeight:'160px'}),placeholder:'Paste the funder\'s email here...'})
+        ),
+        React.createElement('button',{onClick:logIncoming,className:'btn-primary',style:{padding:'0.6rem 1.5rem',fontSize:'0.88rem',fontWeight:700}},'📧 Log & Draft Response with Caleb AI')
+      )
+    ),
+
+    // COMPOSE OUTREACH
+    subView==='outreach' && React.createElement('div',{className:'d-card'},
+      React.createElement('div',{className:'d-card-head'},React.createElement('span',{className:'d-card-title'},'COMPOSE GRANT OUTREACH')),
+      React.createElement('div',{className:'d-card-body'},
+        React.createElement('div',{style:{fontSize:'0.78rem',color:'var(--dmuted)',marginBottom:'0.85rem'}},'Compose an outreach email to a funder. Opens in Gmail (bro.chuck.edwards@gmail.com) pre-populated.'),
+        React.createElement('div',{style:{marginBottom:'0.65rem'}},
+          React.createElement('label',{style:lbl_s},'To (funder email)'),
+          React.createElement('input',{type:'email',id:'out-to',style:inp_s,placeholder:'grants@samhsa.gov'})
+        ),
+        React.createElement('div',{style:{marginBottom:'0.65rem'}},
+          React.createElement('label',{style:lbl_s},'Subject'),
+          React.createElement('input',{type:'text',id:'out-subject',style:inp_s,placeholder:'RRN Grant Inquiry — Refined Recovery Network LLC'})
+        ),
+        React.createElement('div',{style:{marginBottom:'0.85rem'}},
+          React.createElement('label',{style:lbl_s},'Message'),
+          React.createElement('textarea',{id:'out-body',style:Object.assign({},ta_s,{minHeight:'180px'}),defaultValue:'Dear Grant Team,\n\nMy name is Charles L. Edwards Jr., CEO of Refined Recovery Network LLC, a faith-based recovery ministry headquartered in Port Allen, Louisiana.\n\nWe are reaching out regarding [grant program name] and would like to express our interest in applying.\n\nRefined Recovery Network serves individuals in recovery through Apostolic faith-integrated discipleship, workforce training, and transitional housing. We currently serve [X] active participants across [X] Louisiana campuses.\n\nWould you be available for a brief call to discuss our program fit and application requirements?\n\nThank you for your time and consideration.\n\nCharles L. Edwards Jr.\nCEO, Refined Recovery Network LLC\n225-333-0330 | bro.chuck.edwards@gmail.com'})
+        ),
+        React.createElement('button',{
+          onClick:function(){
+            var to      = document.getElementById('out-to').value;
+            var subject = document.getElementById('out-subject').value;
+            var body    = document.getElementById('out-body').value;
+            if(!to){ toast && toast({icon:'⚠️',title:'Enter recipient email'}); return; }
+            sendOutreach(to,subject,body);
+          },
+          className:'btn-primary',style:{padding:'0.6rem 1.5rem',fontSize:'0.88rem',fontWeight:700}
+        },'📤 Open in Gmail')
+      )
+    ),
+
+    // SENT HISTORY
+    subView==='sent' && React.createElement('div',null,
+      sent.length===0
+        ? React.createElement('div',{className:'d-card',style:{padding:'2rem',textAlign:'center',color:'var(--dmuted)'}},'No sent history yet.')
+        : sent.map(function(e,i){ return React.createElement('div',{key:i,className:'d-card',style:{marginBottom:'0.5rem'}},
+            React.createElement('div',{className:'d-card-body'},
+              React.createElement('div',{style:{fontWeight:600,color:'var(--dtxt)',fontSize:'0.85rem'}},e.subject),
+              React.createElement('div',{style:{fontSize:'0.72rem',color:'var(--dmuted)'}},'To: '+e.from+' · Approved: '+new Date(e.approvedAt||e.sentAt).toLocaleString()),
+              React.createElement('div',{style:{fontSize:'0.72rem',color:'var(--l5)',marginTop:'0.15rem'}},'✅ Approved by '+e.approvedBy)
+            )
+          ); })
+    )
+  );
+}
 function GrantEngine({ platform, update, toast, session, setActive }) {
   var _s1=React.useState('dashboard'), view=_s1[0], setView=_s1[1];
   var _s2=React.useState(null), selGrant=_s2[0], setSelGrant=_s2[1];
@@ -13141,7 +13999,9 @@ function GrantEngine({ platform, update, toast, session, setActive }) {
           React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
             React.createElement('div',{style:{fontSize:'0.78rem',color:'var(--dmuted)'}},grant.cycle),
             applied?React.createElement('span',{style:{fontSize:'0.68rem',fontWeight:700,padding:'0.12rem 0.45rem',borderRadius:4,background:'rgba(91,196,110,0.1)',color:'var(--l5)'}},'✓ Applied')
-            :React.createElement('button',{onClick:function(e){e.stopPropagation();setBuilderGrant(grant);},style:{fontSize:'0.78rem',color:'#fff',fontWeight:700,background:'var(--l2)',border:'none',borderRadius:4,padding:'0.25rem 0.65rem',cursor:'pointer'}},'📄 Open Builder →')
+            :React.createElement('div',{style:{display:'flex',gap:'0.4rem'}},
+              React.createElement('button',{onClick:function(e){e.stopPropagation();setBuilderGrant(grant);},style:{fontSize:'0.72rem',color:'#fff',fontWeight:700,background:'var(--l2)',border:'none',borderRadius:4,padding:'0.22rem 0.55rem',cursor:'pointer'}},'📄 Builder'),
+              React.createElement('button',{onClick:function(e){e.stopPropagation();window._rrnSetActiveSection&&window._rrnSetActiveSection('grant-os');window._grantOSGrant=grant;},style:{fontSize:'0.72rem',color:'var(--gold)',fontWeight:700,background:'rgba(200,145,58,0.1)',border:'1px solid rgba(200,145,58,0.3)',borderRadius:4,padding:'0.22rem 0.55rem',cursor:'pointer'}},'🧠 Launch OS'))
           )
         )
       );
@@ -13155,528 +14015,583 @@ function GrantEngine({ platform, update, toast, session, setActive }) {
 
 function GrantApplicationBuilder({ grant, platform, onClose, toast }) {
   var SECTIONS = [
-    { id:'org',      label:'Organization Info',    icon:'🏛️',  required:true },
-    { id:'summary',  label:'Project Summary',      icon:'📋',  required:true },
-    { id:'problem',  label:'Problem Statement',    icon:'⚠️',  required:true },
-    { id:'goals',    label:'Goals & Outcomes',     icon:'🎯',  required:true },
-    { id:'budget',   label:'Budget Table',         icon:'💰',  required:true },
-    { id:'timeline', label:'Timeline',             icon:'📅',  required:true },
-    { id:'eval',     label:'Evaluation Metrics',   icon:'📊',  required:true },
-    { id:'attach',   label:'Attachments',          icon:'📎',  required:false },
+    { id:'org',       label:'Organization Info',     icon:'🏛️',  required:true },
+    { id:'summary',   label:'Project Summary',        icon:'📋',  required:true },
+    { id:'problem',   label:'Problem Statement',      icon:'⚠️',  required:true },
+    { id:'goals',     label:'Goals & Outcomes',       icon:'🎯',  required:true },
+    { id:'budget',    label:'Budget Table',           icon:'💰',  required:true },
+    { id:'timeline',  label:'Timeline',               icon:'📅',  required:true },
+    { id:'eval',      label:'Evaluation Metrics',     icon:'📊',  required:true },
+    { id:'portfolio', label:'Portfolio & Deadlines',  icon:'📆',  required:false },
+    { id:'attach',    label:'Attachments',            icon:'📎',  required:false },
   ];
 
-  var _s1 = React.useState(0),         step = _s1[0], setStep = _s1[1];
-  var _s2 = React.useState(null),       qcResults = _s2[0], setQcResults = _s2[1];
-  var _s3 = React.useState(false),      exporting = _s3[0], setExporting = _s3[1];
-  var _s4 = React.useState([]),         versions = _s4[0], setVersions = _s4[1];
+  var _s1  = React.useState(0),         step      = _s1[0],      setStep      = _s1[1];
+  var _s2  = React.useState(null),      qcResults = _s2[0],      setQcResults = _s2[1];
+  var _s3  = React.useState(false),     exporting = _s3[0],      setExporting = _s3[1];
+  var _s4  = React.useState([]),        versions  = _s4[0],      setVersions  = _s4[1];
+  var _s6  = React.useState({}),        aiDrafts  = _s6[0],      setAiDrafts  = _s6[1];
+  var _s7  = React.useState(null),      aiLoading = _s7[0],      setAiLoading = _s7[1];
 
-  // Load or init draft
   var draftKey = 'rrn_grant_draft_' + (grant ? grant.id : 'new');
+  var versKey  = 'rrn_grant_ver_'   + (grant ? grant.id : 'new');
+
+  // ── Live data from platform ──────────────────────────────────────────────
+  var members    = platform.members    || [];
+  var housing    = platform.housing    || {};
+  var workforce  = platform.workforceCandidates || [];
+  var employers  = platform.employers  || [];
+  var victories  = (platform.victories || []).length;
+  var activeM    = members.filter(function(m){ return m.status==='ACTIVE'; }).length;
+  var employed   = members.filter(function(m){ return m.employmentStatus && m.employmentStatus.indexOf('Employed')>=0; }).length;
+  var housed     = typeof housing.occupiedBeds === 'number' ? housing.occupiedBeds : 0;
+  var totalBeds  = typeof housing.totalBeds    === 'number' ? housing.totalBeds    : 0;
+  var completions = members.filter(function(m){ return (m.stepNum||0) >= 12; }).length;
+
   function loadDraft() {
-    try {
-      var d = JSON.parse(localStorage.getItem(draftKey) || 'null');
-      return d || getBlankForm();
-    } catch(e) { return getBlankForm(); }
+    try { var d = JSON.parse(localStorage.getItem(draftKey)||'null'); return d || getBlankForm(); }
+    catch(e) { return getBlankForm(); }
   }
+  function loadVersions() {
+    try { return JSON.parse(localStorage.getItem(versKey)||'[]'); }
+    catch(e) { return []; }
+  }
+
   var _s5 = React.useState(loadDraft), form = _s5[0], setForm = _s5[1];
 
+  React.useEffect(function(){
+    setVersions(loadVersions());
+  }, []);
+
   function getBlankForm() {
-    var m = platform.members || [];
+    // Improvement #4 — Outcome metrics auto-filled from live platform data
     return {
-      // Org Info
-      orgName: 'Refined Recovery Network',
-      orgAddress: 'Port Allen, Louisiana',
-      orgEIN: '',
-      orgFounded: '2005',
-      orgMission: 'Empowering individuals in recovery through Apostolic faith, structured discipleship, workforce training, and sustainable housing.',
-      contactName: '',
-      contactEmail: '',
-      contactPhone: '',
-      // Project Summary
+      orgName:'Refined Recovery Network LLC', orgAddress:'12883 HWY 190 West, Port Allen, Louisiana 70767',
+      orgEIN:'', orgFounded:'2005', orgMission:'Empowering individuals in recovery through Apostolic faith, structured discipleship, workforce training, and sustainable housing.',
+      contactName:'Charles L. Edwards Jr.', contactEmail:'bro.chuck.edwards@gmail.com', contactPhone:'225-333-0330',
       projectTitle: grant ? grant.name : '',
-      projectAmount: grant ? (grant.amount || '').split('–')[0].replace(/[^0-9]/g,'') : '',
-      projectDuration: '12',
-      projectStart: '',
-      projectSummary: '',
-      // Problem Statement
-      problemStatement: '',
-      targetPopulation: 'Individuals in recovery from substance use disorders in the Baton Rouge metropolitan area, including court-referred participants, returning citizens, and individuals experiencing housing instability.',
-      geographicArea: 'Baton Rouge metro, Pointe Coupee Parish, Avoyelles Parish — Louisiana',
-      populationSize: m.length > 0 ? String(m.length) : '',
-      // Goals & Outcomes
-      primaryGoal: '',
-      outcomes: [
-        { metric: 'Individuals Enrolled', target: '', timeframe: '12 months' },
-        { metric: 'Program Completions', target: '', timeframe: '12 months' },
-        { metric: 'Credential / Certification Attained', target: '', timeframe: '12 months' },
-        { metric: 'Placed in Employment', target: '', timeframe: '12 months' },
-        { metric: 'Housing Stable at 6 Months', target: '', timeframe: '6 months' },
+      projectAmount: grant ? (grant.amount||'').split('\u2013')[0].replace(/[^0-9]/g,'') : '',
+      projectDuration:'12', projectStart:'', projectSummary:'',
+      problemStatement:'',
+      targetPopulation:'Individuals in recovery from substance use disorders in the Baton Rouge metropolitan area, including court-referred participants, returning citizens, and individuals experiencing housing instability.',
+      geographicArea:'Baton Rouge metro, Pointe Coupee Parish, Avoyelles Parish \u2014 Louisiana',
+      populationSize: members.length > 0 ? String(members.length) : '',
+      primaryGoal:'',
+      outcomes:[
+        { metric:'Individuals Enrolled',             target: activeM > 0 ? String(Math.max(activeM, 25)) : '',  timeframe:'12 months' },
+        { metric:'Program Completions',              target: completions > 0 ? String(completions) : '',         timeframe:'12 months' },
+        { metric:'Credential / Certification Attained', target:'',                                              timeframe:'12 months' },
+        { metric:'Placed in Employment',             target: employed > 0 ? String(employed) : '',               timeframe:'12 months' },
+        { metric:'Housing Stable at 6 Months',      target: housed > 0 ? String(housed) : '',                   timeframe:'6 months'  },
+        { metric:'Recidivism Reduction Rate',        target:'',                                                  timeframe:'12 months' },
       ],
-      // Budget
-      budgetLines: [
-        { category: 'Personnel', item: 'Program Director (0.5 FTE)', quantity: '1', unit: 'year', unitCost: '', grantAmt: '', matchAmt: '' },
-        { category: 'Personnel', item: 'Case Manager (1.0 FTE)', quantity: '1', unit: 'year', unitCost: '', grantAmt: '', matchAmt: '' },
-        { category: 'Personnel', item: 'Workforce Coach (0.75 FTE)', quantity: '1', unit: 'year', unitCost: '', grantAmt: '', matchAmt: '' },
-        { category: 'Operations', item: 'Facility / Program Space', quantity: '12', unit: 'month', unitCost: '', grantAmt: '', matchAmt: '' },
-        { category: 'Operations', item: 'Participant Supplies & Materials', quantity: '1', unit: 'year', unitCost: '', grantAmt: '', matchAmt: '' },
-        { category: 'Training', item: 'Certification / Credentialing Fees', quantity: '1', unit: 'cohort', unitCost: '', grantAmt: '', matchAmt: '' },
-        { category: 'Indirect', item: 'Indirect Cost (10%)', quantity: '1', unit: 'lump', unitCost: '', grantAmt: '', matchAmt: '' },
+      budgetLines:[
+        { category:'Personnel',  item:'Program Director (0.5 FTE)',          quantity:'1',  unit:'year',   unitCost:'',  grantAmt:'',  matchAmt:'' },
+        { category:'Personnel',  item:'Case Manager (1.0 FTE)',               quantity:'1',  unit:'year',   unitCost:'',  grantAmt:'',  matchAmt:'' },
+        { category:'Personnel',  item:'Workforce Coach (0.75 FTE)',           quantity:'1',  unit:'year',   unitCost:'',  grantAmt:'',  matchAmt:'' },
+        { category:'Operations', item:'Facility / Program Space',             quantity:'12', unit:'month',  unitCost:'',  grantAmt:'',  matchAmt:'' },
+        { category:'Operations', item:'Participant Supplies & Materials',     quantity:'1',  unit:'year',   unitCost:'',  grantAmt:'',  matchAmt:'' },
+        { category:'Training',   item:'Certification / Credentialing Fees',  quantity:'1',  unit:'cohort', unitCost:'',  grantAmt:'',  matchAmt:'' },
+        { category:'Indirect',   item:'Indirect Cost (10%)',                  quantity:'1',  unit:'lump',   unitCost:'',  grantAmt:'',  matchAmt:'' },
       ],
-      budgetNarrative: '',
-      // Timeline
-      milestones: [
-        { month: '1–2',  activity: 'Program setup, staff hiring, partner agreements' },
-        { month: '3',    activity: 'First cohort enrollment and intake' },
-        { month: '3–6',  activity: 'Training delivery, case management, employer outreach' },
-        { month: '6',    activity: 'Mid-program evaluation and reporting' },
-        { month: '7–10', activity: 'Second cohort, credential completion, placement' },
-        { month: '11–12',activity: 'Final cohort, outcomes measurement, grant report' },
+      budgetNarrative:'',
+      milestones:[
+        { month:'1\u20132',   activity:'Program setup, staff hiring, partner agreements finalized' },
+        { month:'3',         activity:'First cohort enrollment and intake assessments' },
+        { month:'3\u20136',  activity:'Training delivery, case management, employer outreach' },
+        { month:'6',         activity:'Mid-program evaluation and funder progress report' },
+        { month:'7\u201310', activity:'Second cohort, credential completion, placement activities' },
+        { month:'11\u201312',activity:'Final cohort, outcomes measurement, grant final report' },
       ],
-      // Evaluation
-      evalMethods: 'Platform data system (Refined Recovery Network PWA) tracks all participant milestones in real time. Monthly reports generated from live database. Third-party employment verification via employer documentation.',
-      reportingSchedule: 'Quarterly progress reports submitted 30 days after period close. Final report with full outcome data submitted 60 days after grant period.',
-      // Attach
-      attachments: [],
-      // Meta
+      evalMethods:'The Refined Recovery Network PWA tracks all participant milestones in real time including enrollment dates, program completions, credential attainment, employment placements, and housing stability. Monthly reports generated from live database. Third-party employment verification via employer documentation.',
+      reportingSchedule:'Quarterly progress reports submitted 30 days after period close. Final report with full outcome data submitted 60 days after grant period end.',
+      // Improvement #3 — Deadline tracking
+      submissionDeadline:'',
+      alertDays:'14',
+      attachments:[],
       grantId: grant ? grant.id : null,
       grantName: grant ? grant.name : '',
       agency: grant ? grant.agency : '',
       savedAt: null,
       version: 1,
-      status: 'draft',
+      status:'draft',
     };
   }
 
-  // Auto-save
-  React.useEffect(function() {
+  React.useEffect(function(){
     try { localStorage.setItem(draftKey, JSON.stringify(form)); } catch(e) {}
   }, [form]);
 
-  function setField(field, value) {
-    setForm(function(f) { return Object.assign({}, f, { [field]: value }); });
+  function setField(k, v){ setForm(function(f){ var n=Object.assign({},f); n[k]=v; return n; }); }
+  function setOutcome(i, k, v){ setForm(function(f){ var o=f.outcomes.slice(); o[i]=Object.assign({},o[i],{[k]:v}); return Object.assign({},f,{outcomes:o}); }); }
+  function setBLine(i, k, v){ setForm(function(f){ var b=f.budgetLines.slice(); b[i]=Object.assign({},b[i],{[k]:v}); return Object.assign({},f,{budgetLines:b}); }); }
+  function addBLine(){ setForm(function(f){ return Object.assign({},f,{budgetLines:f.budgetLines.concat([{category:'Operations',item:'',quantity:'1',unit:'year',unitCost:'',grantAmt:'',matchAmt:''}])}); }); }
+  function remBLine(i){ setForm(function(f){ var b=f.budgetLines.filter(function(_,j){return j!==i;}); return Object.assign({},f,{budgetLines:b}); }); }
+
+  // ── Improvement #7 — Portfolio view from localStorage ────────────────────
+  var allGrants = [];
+  try{ allGrants = JSON.parse(localStorage.getItem('rrn_grant_applications')||'[]'); }catch(e){}
+  var awarded   = allGrants.filter(function(g){ return g.status==='awarded'; });
+  var pending   = allGrants.filter(function(g){ return g.status==='submitted'||g.status==='applied'; });
+  var totalPipeline = allGrants.reduce(function(s,g){ return s+(parseInt((g.amount||'0').replace(/[^0-9]/g,''),10)||0); }, 0);
+  var totalAwarded  = awarded.reduce(function(s,g){ return s+(parseInt((g.amount||'0').replace(/[^0-9]/g,''),10)||0); }, 0);
+
+  // ── Improvement #2 — Live fit score recalculation ────────────────────────
+  function calcFitScore(g){
+    if(!g) return 0;
+    var base = g.grantFit || 80;
+    var bonus = 0;
+    if(members.length >= 20)   bonus += 3;
+    if(members.length >= 50)   bonus += 3;
+    if(employed >= 5)          bonus += 2;
+    if(housed >= 5)            bonus += 2;
+    if(completions >= 5)       bonus += 2;
+    if(employers.length >= 3)  bonus += 2;
+    if(victories >= 10)        bonus += 1;
+    return Math.min(100, base + bonus);
+  }
+  var liveScore = calcFitScore(grant);
+
+  // ── Improvement #5 — Budget match calculator ─────────────────────────────
+  var grantTotal = form.budgetLines.reduce(function(s,l){ return s+(parseFloat(l.grantAmt)||0); }, 0);
+  var matchTotal = form.budgetLines.reduce(function(s,l){ return s+(parseFloat(l.matchAmt)||0); }, 0);
+  var totalBudget = grantTotal + matchTotal;
+  var matchPct = totalBudget > 0 ? Math.round(matchTotal/totalBudget*100) : 0;
+  // Most federal grants require 25% match minimum
+  var requiredMatch = g => g && g.type === 'Federal' ? 25 : g && g.type === 'State-Federal' ? 20 : 0;
+  var reqMatchPct = grant ? requiredMatch(grant) : 0;
+  var matchGap = Math.max(0, reqMatchPct - matchPct);
+
+  // ── Improvement #6 — Version history ─────────────────────────────────────
+  function saveVersion(label){
+    var snap = { ts:new Date().toISOString(), label:label||('Draft v'+form.version+' \u2014 '+new Date().toLocaleDateString()), form:JSON.parse(JSON.stringify(form)) };
+    var vers = loadVersions();
+    vers.unshift(snap);
+    vers = vers.slice(0,10);
+    try{ localStorage.setItem(versKey, JSON.stringify(vers)); }catch(e){}
+    setVersions(vers);
+    setForm(function(f){ return Object.assign({},f,{savedAt:snap.ts,version:(f.version||1)+1}); });
+    toast && toast({icon:'\uD83D\uDCBE',title:'Version saved: '+snap.label});
   }
 
-  function setOutcome(idx, field, value) {
-    setForm(function(f) {
-      var outcomes = f.outcomes.slice();
-      outcomes[idx] = Object.assign({}, outcomes[idx], { [field]: value });
-      return Object.assign({}, f, { outcomes: outcomes });
-    });
+  function restoreVersion(snap){
+    setForm(snap.form);
+    toast && toast({icon:'\u21A9\uFE0F',title:'Restored: '+snap.label});
   }
 
-  function setBudgetLine(idx, field, value) {
-    setForm(function(f) {
-      var lines = f.budgetLines.slice();
-      lines[idx] = Object.assign({}, lines[idx], { [field]: value });
-      return Object.assign({}, f, { budgetLines: lines });
-    });
+  // ── Improvement #1 — AI narrative writer ─────────────────────────────────
+  function draftWithAI(field){
+    var apiKey = window.RRN_ANTHROPIC_KEY || localStorage.getItem('rrn_anthropic_key') || '';
+    if(!apiKey){ toast && toast({icon:'\u26A0\uFE0F',title:'Set Caleb API key to use AI writer. Type setCalebKey("sk-ant-...") in console.'}); return; }
+    setAiLoading(field);
+
+    var platformCtx = 'Active members: '+activeM+'. Program completions: '+completions+'. Employed: '+employed+'. Housing beds: '+housed+'/'+totalBeds+'. Employer partners: '+employers.length+'. Grant: '+( grant ? grant.name+' ('+grant.agency+')' : 'General')+'. Grant fit: '+liveScore+'%.';
+
+    var prompts = {
+      projectSummary: 'Write a 150-word executive summary for a grant application to '+( grant ? grant.agency : 'this funder')+' for "'+form.projectTitle+'". The applicant is Refined Recovery Network LLC, an Apostolic faith-based recovery ministry in Port Allen, Louisiana. '+platformCtx+' Use specific numbers from the platform data. Professional, compelling, no fluff.',
+      problemStatement: 'Write a 200-word problem statement for a '+( grant ? grant.agency : 'federal')+' grant application by Refined Recovery Network. Address the substance use disorder crisis in Louisiana, the recovery gap, and why faith-integrated recovery works. Include regional data. Use this platform context: '+platformCtx+' Cite Louisiana-specific statistics where relevant.',
+      primaryGoal: 'Write a 100-word primary goal statement for '+( grant ? grant.name : 'this grant')+'. The goal should be specific, measurable, and tied to the funder\'s priorities. Applicant data: '+platformCtx+' Write in grant language.',
+      budgetNarrative: 'Write a 150-word budget narrative justifying the personnel and program costs for a '+( grant ? grant.agency : 'federal')+' grant application by Refined Recovery Network. Key personnel: Program Director, Case Manager, Workforce Coach. Justify why each is essential to outcomes. Applicant data: '+platformCtx,
+      evalMethods: 'Write a 120-word evaluation methodology section for a '+( grant ? grant.agency : 'federal')+' grant. Describe how Refined Recovery Network tracks outcomes using its PWA platform (real-time member tracking, employment verification, housing stability monitoring). Platform data: '+platformCtx,
+    };
+
+    var prompt = prompts[field];
+    if(!prompt){ setAiLoading(null); return; }
+
+    fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:400,
+        system:'You are a professional grant writer for faith-based nonprofit organizations. Write clearly, specifically, and compellingly. Use active voice. No generic filler. Cite provided platform data as evidence.',
+        messages:[{role:'user',content:prompt}]})
+    }).then(function(r){return r.json();})
+    .then(function(d){
+      var text = (d.content&&d.content[0]&&d.content[0].text)||'';
+      if(text){ setField(field, text); setAiDrafts(function(prev){ var n=Object.assign({},prev); n[field]=true; return n; }); toast && toast({icon:'\u2728',title:'AI draft ready — review and edit'}); }
+      setAiLoading(null);
+    }).catch(function(){ setAiLoading(null); toast && toast({icon:'\u274C',title:'AI writer failed — check API key'}); });
   }
 
-  function addBudgetLine() {
-    setForm(function(f) {
-      return Object.assign({}, f, { budgetLines: f.budgetLines.concat([
-        { category: 'Operations', item: '', quantity: '1', unit: 'year', unitCost: '', grantAmt: '', matchAmt: '' }
-      ])});
-    });
+  // ── Improvement #10 — Grant-specific narrative templates ─────────────────
+  var GRANT_TIPS = grant ? {
+    'wioa1':  { summary:'Lead with barrier removal — WIOA Title I prioritizes demonstrated barriers to employment. Recovery = qualified barrier under law.',
+                 problem:'Cite Louisiana unemployment rate for returning citizens (3x general population). Cite WDB data for your region.',
+                 goals:'WIOA measures: enrollment, credential attainment, employment at 2nd quarter, median wages, retention at 4th quarter.' },
+    'wioa2':  { summary:'Lead with educational equity — emphasize adult learners with interrupted education pathways.',
+                 problem:'40% of Louisiana adults lack a high school diploma or equivalent. Recovery disrupts education timelines.',
+                 goals:'WIOA II metrics: NRS educational gain, credential attainment, employment/postsecondary transition.' },
+    'sca':    { summary:'Lead with criminal justice outcomes — Second Chance is explicitly about reentry. Court-referred members are the primary population.',
+                 problem:'Louisiana incarceration rate is highest in US. 68% recidivism without intervention. Faith-integrated reentry cuts it by half.',
+                 goals:'BJA measures: recidivism reduction at 12/24 months, employment at 6 months, housing stability, substance use reduction.' },
+    'samhsa_rcsp': { summary:'Lead with peer-led recovery model — SAMHSA RCSP is built for organizations like RRN. Peer mentors, housing, workforce is the textbook structure.',
+                 problem:'Recovery community organizations are underserved by clinical models. Peer support is evidence-based and cost-effective.',
+                 goals:'SAMHSA metrics: individuals served, recovery support contacts, employment outcomes, housing stability, sustained recovery.' },
+    'entergy':{ summary:'Lead with Louisiana community impact. Entergy Foundation prioritizes local workforce and energy-sector pipelines.',
+                 problem:'Skilled trades gap in Louisiana post-storm recovery. Energy sector employers cannot fill positions locally.',
+                 goals:'LOI first (2 pages). Focus on community ROI and employer partnership metrics.' },
+  }[grant.id] : null;
+
+  // ── Improvement #3 — Deadline calendar & alerts ──────────────────────────
+  var deadlineAlert = null;
+  if(form.submissionDeadline){
+    var daysLeft = Math.round((new Date(form.submissionDeadline) - new Date()) / 864e5);
+    if(daysLeft <= 1)  deadlineAlert = {level:'CRITICAL', msg:daysLeft<=0?'DEADLINE PASSED':'DUE TOMORROW', color:'#fc8181'};
+    else if(daysLeft <= 7)  deadlineAlert = {level:'URGENT', msg:daysLeft+' days left', color:'#c8913a'};
+    else if(daysLeft <= 14) deadlineAlert = {level:'WARN',   msg:daysLeft+' days left', color:'var(--gold)'};
+    else                    deadlineAlert = {level:'OK',     msg:daysLeft+' days left', color:'var(--l5)'};
   }
 
-  function removeBudgetLine(idx) {
-    setForm(function(f) {
-      var lines = f.budgetLines.slice();
-      lines.splice(idx, 1);
-      return Object.assign({}, f, { budgetLines: lines });
-    });
-  }
-
-  // Budget totals
-  function budgetTotals() {
-    return form.budgetLines.reduce(function(acc, l) {
-      var g = parseFloat(l.grantAmt) || 0;
-      var m = parseFloat(l.matchAmt) || 0;
-      return { grant: acc.grant + g, match: acc.match + m, total: acc.total + g + m };
-    }, { grant: 0, match: 0, total: 0 });
-  }
-
-  // Save version
-  function saveVersion() {
-    var v = Object.assign({}, form, {
-      savedAt: new Date().toISOString(),
-      version: (form.version || 1),
-    });
-    setVersions(function(vs) { return vs.concat([v]); });
-    setForm(function(f) { return Object.assign({}, f, { version: (f.version||1) + 1, savedAt: v.savedAt }); });
-    if (window.rrnSaveGrant) window.rrnSaveGrant(v);
-    if (toast) toast('Draft v' + v.version + ' saved', 'success');
-  }
-
-  // QC Gate — checks all required sections
-  function runQC() {
-    var errors = [];
-    var f = form;
-    if (!f.orgName) errors.push('Organization name required');
-    if (!f.orgEIN) errors.push('EIN required');
-    if (!f.contactName) errors.push('Contact name required');
-    if (!f.contactEmail) errors.push('Contact email required');
-    if (!f.projectTitle) errors.push('Project title required');
-    if (!f.projectAmount) errors.push('Requested amount required');
-    if (!f.projectSummary || f.projectSummary.length < 100) errors.push('Project summary must be at least 100 characters');
-    if (!f.problemStatement || f.problemStatement.length < 100) errors.push('Problem statement must be at least 100 characters');
-    if (!f.primaryGoal) errors.push('Primary goal required');
-    var missingTargets = f.outcomes.filter(function(o) { return !o.target; });
-    if (missingTargets.length > 0) errors.push(missingTargets.length + ' outcome targets missing');
-    var totals = budgetTotals();
-    if (totals.grant === 0) errors.push('Budget — no grant amounts entered');
-    var emptyLines = f.budgetLines.filter(function(l) { return !l.item; });
-    if (emptyLines.length > 0) errors.push(emptyLines.length + ' budget line items missing descriptions');
-    if (!f.evalMethods) errors.push('Evaluation methods required');
-    setQcResults({ errors: errors, passed: errors.length === 0, ts: new Date().toLocaleTimeString() });
-    return errors.length === 0;
-  }
-
-  // Export to text (printable)
-  function exportGrant() {
-    if (!runQC()) {
-      if (toast) toast('QC failed — fix errors before exporting', 'error');
-      return;
-    }
-    setExporting(true);
-    var f = form;
-    var totals = budgetTotals();
-    var lines = [
-      'GRANT APPLICATION',
-      '='.repeat(70),
-      'Grant: ' + f.grantName,
-      'Agency: ' + f.agency,
-      'Requested Amount: $' + Number(f.projectAmount).toLocaleString(),
-      'Project Duration: ' + f.projectDuration + ' months',
-      'Prepared: ' + new Date().toLocaleDateString(),
-      '',
-      'SECTION 1 — ORGANIZATION INFORMATION',
-      '-'.repeat(50),
-      'Organization: ' + f.orgName,
-      'Address: ' + f.orgAddress,
-      'EIN: ' + f.orgEIN,
-      'Founded: ' + f.orgFounded,
-      'Mission: ' + f.orgMission,
-      'Contact: ' + f.contactName + ' | ' + f.contactEmail + ' | ' + f.contactPhone,
-      '',
-      'SECTION 2 — PROJECT SUMMARY',
-      '-'.repeat(50),
-      'Project Title: ' + f.projectTitle,
-      '',
-      f.projectSummary,
-      '',
-      'SECTION 3 — PROBLEM STATEMENT',
-      '-'.repeat(50),
-      f.problemStatement,
-      '',
-      'Target Population: ' + f.targetPopulation,
-      'Geographic Area: ' + f.geographicArea,
-      'Population Size: ' + f.populationSize,
-      '',
-      'SECTION 4 — GOALS & OUTCOMES',
-      '-'.repeat(50),
-      'Primary Goal: ' + f.primaryGoal,
-      '',
-      'Measurable Outcomes:',
-    ];
-    f.outcomes.forEach(function(o, i) {
-      lines.push('  ' + (i+1) + '. ' + o.metric + ': ' + o.target + ' (' + o.timeframe + ')');
-    });
-    lines.push('');
-    lines.push('SECTION 5 — BUDGET');
-    lines.push('-'.repeat(50));
-    lines.push('Category         | Line Item                        | Grant $   | Match $   | Total $');
-    lines.push('-'.repeat(90));
-    f.budgetLines.forEach(function(l) {
-      var g = parseFloat(l.grantAmt)||0;
-      var m = parseFloat(l.matchAmt)||0;
-      lines.push(
-        (l.category||'').padEnd(17) + '| ' +
-        (l.item||'').padEnd(33) + '| ' +
-        ('$'+(g).toLocaleString()).padEnd(10) + '| ' +
-        ('$'+(m).toLocaleString()).padEnd(10) + '| ' +
-        '$'+(g+m).toLocaleString()
-      );
-    });
-    lines.push('-'.repeat(90));
-    lines.push('TOTALS'.padEnd(17) + '|' + ' '.repeat(34) + '| $' + totals.grant.toLocaleString().padEnd(9) + '| $' + totals.match.toLocaleString().padEnd(9) + '| $' + totals.total.toLocaleString());
-    lines.push('');
-    lines.push('Budget Narrative:');
-    lines.push(f.budgetNarrative);
-    lines.push('');
-    lines.push('SECTION 6 — TIMELINE');
-    lines.push('-'.repeat(50));
-    f.milestones.forEach(function(ms) {
-      lines.push('Month ' + ms.month + ': ' + ms.activity);
-    });
-    lines.push('');
-    lines.push('SECTION 7 — EVALUATION');
-    lines.push('-'.repeat(50));
-    lines.push(f.evalMethods);
-    lines.push('');
-    lines.push('Reporting Schedule: ' + f.reportingSchedule);
-    lines.push('');
-    lines.push('='.repeat(70));
-    lines.push('END OF APPLICATION — Version ' + f.version + ' — ' + new Date().toISOString());
-
-    var text = lines.join('\n');
-    var blob = new Blob([text], { type: 'text/plain' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'RRN_Grant_' + (f.grantName||'Application').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'') + '_v' + f.version + '.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
-    // Also save JSON
-    var jsonBlob = new Blob([JSON.stringify(f, null, 2)], { type: 'application/json' });
-    var b = document.createElement('a');
-    b.href = URL.createObjectURL(jsonBlob);
-    b.download = 'RRN_Grant_' + (f.grantName||'Application').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'') + '_v' + f.version + '.json';
-    document.body.appendChild(b);
-    b.click();
-    document.body.removeChild(b);
-
-    setExporting(false);
-    if (toast) toast('Exported TXT + JSON', 'success');
-  }
-
-  // Input helper
-  function inp(field, placeholder, multiline, rows) {
-    var val = form[field] || '';
-    var style = { width:'100%', padding:'0.5rem 0.75rem', borderRadius:6, border:'1px solid var(--bdr)', background:'var(--dsub)', color:'var(--dtxt)', fontSize:'0.83rem', fontFamily:'inherit', boxSizing:'border-box', outline:'none' };
-    if (multiline) {
-      return React.createElement('textarea', { rows: rows||4, value: val, placeholder: placeholder, style: Object.assign({}, style, { resize:'vertical', minHeight: (rows||4)*1.6+'rem' }), onChange: function(e) { setField(field, e.target.value); } });
-    }
-    return React.createElement('input', { type:'text', value: val, placeholder: placeholder, style: style, onChange: function(e) { setField(field, e.target.value); } });
-  }
-
-  function label(text, required) {
-    return React.createElement('div', { style:{ fontSize:'0.72rem', fontWeight:700, color:'var(--dmuted)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'0.3rem', marginTop:'0.85rem' } },
-      text, required ? React.createElement('span', { style:{ color:'var(--danger)', marginLeft:4 } }, '*') : null
-    );
-  }
-
-  var totals = budgetTotals();
+  var progress = Math.round((step + 1) / SECTIONS.length * 100);
   var sec = SECTIONS[step];
-  var progress = Math.round((step / (SECTIONS.length - 1)) * 100);
+  var inp_s = {width:'100%',padding:'0.5rem 0.7rem',borderRadius:6,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--dtxt)',fontSize:'0.82rem',boxSizing:'border-box'};
+  var ta_s  = Object.assign({},inp_s,{minHeight:'110px',resize:'vertical',fontFamily:'var(--font-body)',lineHeight:1.6});
+  var lbl_s = {display:'block',fontSize:'0.72rem',fontWeight:700,color:'var(--dtxt)',marginBottom:'0.25rem'};
 
-  // Render current section
-  function renderSection() {
-    if (sec.id === 'org') return React.createElement('div', null,
-      label('Organization Name', true), inp('orgName', 'Legal organization name'),
-      label('Address'), inp('orgAddress', 'Street, City, State, ZIP'),
-      label('EIN (Federal Tax ID)', true), inp('orgEIN', 'XX-XXXXXXX'),
-      label('Year Founded'), inp('orgFounded', 'YYYY'),
-      label('Mission Statement'), inp('orgMission', 'Organization mission', true, 3),
-      label('Primary Contact', true), inp('contactName', 'Full name'),
-      label('Contact Email', true), inp('contactEmail', 'email@refinedrecovery.com'),
-      label('Contact Phone'), inp('contactPhone', '(XXX) XXX-XXXX'),
+  function aiBtn(field, label){
+    var loading = aiLoading===field;
+    var drafted = aiDrafts[field];
+    return React.createElement('button',{
+      onClick:function(){draftWithAI(field);},
+      disabled:loading,
+      style:{fontSize:'0.68rem',padding:'0.25rem 0.65rem',borderRadius:4,border:'1px solid rgba(200,145,58,0.4)',
+        background:drafted?'rgba(91,196,110,0.08)':'rgba(200,145,58,0.08)',
+        color:drafted?'var(--l5)':'var(--gold)',cursor:loading?'wait':'pointer',fontWeight:600,marginLeft:'0.5rem',flexShrink:0}
+    }, loading?'\u23F3 Writing...': drafted?'\u2728 Re-draft':'\u2728 Draft with Caleb AI');
+  }
+
+  function sectionRow(label, field, isTA, opts){
+    return React.createElement('div',{style:{marginBottom:'0.85rem'}},
+      React.createElement('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'0.25rem'}},
+        React.createElement('label',{style:lbl_s},label),
+        opts && opts.ai && aiBtn(field, label)
+      ),
+      isTA
+        ? React.createElement('textarea',{value:form[field]||'',onChange:function(e){setField(field,e.target.value);},style:ta_s})
+        : React.createElement('input',{type:opts&&opts.type||'text',value:form[field]||'',onChange:function(e){setField(field,e.target.value);},style:inp_s,placeholder:opts&&opts.ph||''})
+    );
+  }
+
+  function renderSection(){
+    var s = sec.id;
+
+    if(s==='org') return React.createElement('div',null,
+      GRANT_TIPS && React.createElement('div',{style:{padding:'0.75rem',background:'rgba(45,212,192,0.06)',border:'1px solid rgba(45,212,192,0.2)',borderRadius:6,marginBottom:'1rem',fontSize:'0.75rem',color:'var(--l2)',lineHeight:1.5}},
+        React.createElement('div',{style:{fontWeight:700,marginBottom:'0.25rem'}}),
+        '\uD83D\uDCA1 '+grant.name+' tip: Contact: '+grant.tip
+      ),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem'}},
+        sectionRow('Organization Name','orgName',false),
+        sectionRow('EIN','orgEIN',false,{ph:'XX-XXXXXXX'}),
+        sectionRow('Address','orgAddress',false),
+        sectionRow('Founded','orgFounded',false,{ph:'Year'}),
+        sectionRow('Contact Name','contactName',false),
+        sectionRow('Contact Email','contactEmail',false,{type:'email'}),
+        sectionRow('Contact Phone','contactPhone',false,{type:'tel'})
+      ),
+      sectionRow('Mission Statement','orgMission',true)
     );
 
-    if (sec.id === 'summary') return React.createElement('div', null,
-      label('Project / Grant Title', true), inp('projectTitle', 'Title of this grant application'),
-      label('Amount Requested ($)', true), inp('projectAmount', '250000'),
-      label('Project Duration (months)', true), inp('projectDuration', '12'),
-      label('Project Start Date'), inp('projectStart', 'MM/YYYY'),
-      label('Project Summary (250+ words)', true), inp('projectSummary', 'Describe your project: what it does, who it serves, how it works, and what outcomes it will achieve...', true, 8),
+    if(s==='summary') return React.createElement('div',null,
+      GRANT_TIPS && React.createElement('div',{style:{padding:'0.6rem 0.75rem',background:'rgba(200,145,58,0.06)',borderLeft:'3px solid rgba(200,145,58,0.4)',borderRadius:'0 6px 6px 0',marginBottom:'0.75rem',fontSize:'0.74rem',color:'var(--gold)',lineHeight:1.5}},
+        '\uD83C\uDFAF '+GRANT_TIPS.summary),
+      sectionRow('Project Title','projectTitle',false),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0.65rem',marginBottom:'0.85rem'}},
+        React.createElement('div',null,React.createElement('label',{style:lbl_s},'Amount Requested'),React.createElement('input',{type:'number',value:form.projectAmount||'',onChange:function(e){setField('projectAmount',e.target.value);},style:inp_s,placeholder:'150000'})),
+        React.createElement('div',null,React.createElement('label',{style:lbl_s},'Duration (months)'),React.createElement('input',{type:'number',value:form.projectDuration||'',onChange:function(e){setField('projectDuration',e.target.value);},style:inp_s})),
+        React.createElement('div',null,React.createElement('label',{style:lbl_s},'Start Date'),React.createElement('input',{type:'date',value:form.projectStart||'',onChange:function(e){setField('projectStart',e.target.value);},style:inp_s}))
+      ),
+      sectionRow('Executive Summary','projectSummary',true,{ai:true})
     );
 
-    if (sec.id === 'problem') return React.createElement('div', null,
-      label('Problem Statement', true), inp('problemStatement', 'Describe the problem your project addresses. Use data, community need documentation, and local context...', true, 8),
-      label('Target Population', true), inp('targetPopulation', 'Who specifically will you serve?', true, 3),
-      label('Geographic Area'), inp('geographicArea', 'Communities / parishes served'),
-      label('Population Size (documented need)'), inp('populationSize', 'Number of individuals in need'),
+    if(s==='problem') return React.createElement('div',null,
+      GRANT_TIPS && React.createElement('div',{style:{padding:'0.6rem 0.75rem',background:'rgba(200,145,58,0.06)',borderLeft:'3px solid rgba(200,145,58,0.4)',borderRadius:'0 6px 6px 0',marginBottom:'0.75rem',fontSize:'0.74rem',color:'var(--gold)',lineHeight:1.5}},
+        '\uD83C\uDFAF '+GRANT_TIPS.problem),
+      sectionRow('Problem Statement','problemStatement',true,{ai:true}),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.65rem'}},
+        sectionRow('Target Population','targetPopulation',false),
+        sectionRow('Geographic Area','geographicArea',false),
+        sectionRow('Population Served (current)','populationSize',false,{ph:'Auto-filled from platform data'})
+      )
     );
 
-    if (sec.id === 'goals') return React.createElement('div', null,
-      label('Primary Program Goal', true), inp('primaryGoal', 'One clear, measurable primary goal', true, 3),
-      label('Measurable Outcomes', true),
-      React.createElement('div', { style:{ overflowX:'auto' } },
-        React.createElement('table', { style:{ width:'100%', borderCollapse:'collapse', fontSize:'0.8rem' } },
-          React.createElement('thead', null,
-            React.createElement('tr', null,
-              ['Outcome Metric','Target #','Timeframe'].map(function(h) {
-                return React.createElement('th', { key:h, style:{ padding:'0.4rem 0.5rem', background:'var(--dsub)', color:'var(--dmuted)', textAlign:'left', fontSize:'0.68rem', textTransform:'uppercase', borderBottom:'1px solid var(--bdr)' } }, h);
-              })
+    if(s==='goals') return React.createElement('div',null,
+      GRANT_TIPS && React.createElement('div',{style:{padding:'0.6rem 0.75rem',background:'rgba(200,145,58,0.06)',borderLeft:'3px solid rgba(200,145,58,0.4)',borderRadius:'0 6px 6px 0',marginBottom:'0.75rem',fontSize:'0.74rem',color:'var(--gold)',lineHeight:1.5}},
+        '\uD83C\uDFAF '+GRANT_TIPS.goals),
+      sectionRow('Primary Goal','primaryGoal',true,{ai:true}),
+      React.createElement('div',{style:{fontSize:'0.72rem',fontWeight:700,color:'var(--dtxt)',marginBottom:'0.5rem',marginTop:'0.5rem'}},'OUTCOME METRICS \u2014 auto-filled from live platform data'),
+      form.outcomes.map(function(o,i){
+        return React.createElement('div',{key:i,style:{display:'grid',gridTemplateColumns:'2fr 1fr 1fr',gap:'0.5rem',marginBottom:'0.4rem',alignItems:'center'}},
+          React.createElement('div',{style:{fontSize:'0.78rem',color:'var(--dtxt)',fontWeight:600}},o.metric),
+          React.createElement('input',{value:o.target,onChange:function(e){setOutcome(i,'target',e.target.value);},placeholder:'Target',style:Object.assign({},inp_s,{padding:'0.3rem 0.5rem'})}),
+          React.createElement('input',{value:o.timeframe,onChange:function(e){setOutcome(i,'timeframe',e.target.value);},style:Object.assign({},inp_s,{padding:'0.3rem 0.5rem'})})
+        );
+      })
+    );
+
+    if(s==='budget') return React.createElement('div',null,
+      // Match calculator — Improvement #5
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'0.5rem',marginBottom:'0.85rem'}},
+        [{l:'Grant Request',v:'$'+Math.round(grantTotal).toLocaleString(),c:'var(--l2)'},
+         {l:'Match Contribution',v:'$'+Math.round(matchTotal).toLocaleString(),c:'var(--gold)'},
+         {l:'Match %',v:matchPct+'%',c:matchGap>0?'#fc8181':'var(--l5)'},
+         {l:'Required Match',v:reqMatchPct+'%',c:'var(--dmuted)'}
+        ].map(function(m){ return React.createElement('div',{key:m.l,style:{padding:'0.6rem',background:'var(--bg3)',borderRadius:6,border:'1px solid var(--bdr2)',textAlign:'center'}},
+          React.createElement('div',{style:{fontSize:'0.62rem',color:'var(--dmuted)',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:'0.15rem'}},m.l),
+          React.createElement('div',{style:{fontSize:'0.95rem',fontWeight:700,color:m.c,fontFamily:'var(--font-mono)'}},m.v)
+        ); })
+      ),
+      matchGap > 0 && React.createElement('div',{style:{padding:'0.5rem 0.75rem',background:'rgba(252,129,129,0.08)',border:'1px solid rgba(252,129,129,0.3)',borderRadius:6,marginBottom:'0.75rem',fontSize:'0.74rem',color:'#fc8181'}},'⚠️ Match gap: you need '+matchGap+'% more match contribution ('+reqMatchPct+'% required for '+grant.type+' grants)'),
+      React.createElement('div',{style:{overflowX:'auto'}},
+        React.createElement('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:'0.75rem'}},
+          React.createElement('thead',null,
+            React.createElement('tr',null,
+              ['Category','Item / Description','Qty','Unit','Unit Cost','Grant $','Match $',''].map(function(h){ return React.createElement('th',{key:h,style:{padding:'0.35rem 0.4rem',textAlign:'left',color:'var(--dmuted)',fontWeight:700,borderBottom:'1px solid var(--bdr)',fontSize:'0.65rem',textTransform:'uppercase'}},h); })
             )
           ),
-          React.createElement('tbody', null,
-            form.outcomes.map(function(o, i) {
-              return React.createElement('tr', { key:i },
-                React.createElement('td', { style:{ padding:'0.35rem 0.5rem', borderBottom:'1px solid var(--bdr)', color:'var(--dtxt)', fontWeight:500 } }, o.metric),
-                React.createElement('td', { style:{ padding:'0.35rem 0.5rem', borderBottom:'1px solid var(--bdr)' } },
-                  React.createElement('input', { type:'number', value:o.target, placeholder:'0', style:{ width:70, padding:'0.3rem', border:'1px solid var(--bdr)', borderRadius:4, background:'var(--dsub)', color:'var(--dtxt)', fontSize:'0.8rem' }, onChange:function(e){setOutcome(i,'target',e.target.value); } })
-                ),
-                React.createElement('td', { style:{ padding:'0.35rem 0.5rem', borderBottom:'1px solid var(--bdr)', color:'var(--dmuted)', fontSize:'0.75rem' } }, o.timeframe)
+          React.createElement('tbody',null,
+            form.budgetLines.map(function(l,i){
+              var is_s = {padding:'0.25rem 0.35rem',border:'1px solid var(--bdr2)',borderRadius:4,background:'var(--bg3)',color:'var(--dtxt)',fontSize:'0.75rem',width:'100%',boxSizing:'border-box'};
+              return React.createElement('tr',{key:i},
+                ['category','item','quantity','unit','unitCost','grantAmt','matchAmt'].map(function(f){
+                  return React.createElement('td',{key:f,style:{padding:'0.2rem 0.3rem'}},
+                    f==='category'
+                      ? React.createElement('select',{value:l[f],onChange:function(e){setBLine(i,f,e.target.value);},style:is_s},
+                          ['Personnel','Operations','Training','Equipment','Indirect'].map(function(c){ return React.createElement('option',{key:c,value:c},c); }))
+                      : React.createElement('input',{value:l[f],onChange:function(e){setBLine(i,f,e.target.value);},style:is_s,type:['quantity','unitCost','grantAmt','matchAmt'].includes(f)?'number':'text'})
+                  );
+                }),
+                React.createElement('td',{style:{padding:'0.2rem'}},
+                  React.createElement('button',{onClick:function(){remBLine(i);},style:{background:'none',border:'none',color:'#fc8181',cursor:'pointer',fontSize:'0.85rem'}},'×'))
               );
             })
           )
         )
-      )
+      ),
+      React.createElement('button',{onClick:addBLine,style:{marginTop:'0.5rem',padding:'0.35rem 0.75rem',borderRadius:5,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--l2)',cursor:'pointer',fontSize:'0.78rem',fontWeight:600}},'+ Add Line'),
+      React.createElement('div',{style:{marginTop:'0.85rem'}}),
+      sectionRow('Budget Narrative','budgetNarrative',true,{ai:true})
     );
 
-    if (sec.id === 'budget') return React.createElement('div', null,
-      React.createElement('div', { style:{ overflowX:'auto', marginBottom:'1rem' } },
-        React.createElement('table', { style:{ width:'100%', borderCollapse:'collapse', fontSize:'0.78rem', minWidth:600 } },
-          React.createElement('thead', null,
-            React.createElement('tr', null,
-              ['Category','Line Item','Qty','Unit','Grant $','Match $'].map(function(h) {
-                return React.createElement('th', { key:h, style:{ padding:'0.4rem 0.5rem', background:'var(--dsub)', color:'var(--dmuted)', textAlign:'left', fontSize:'0.65rem', textTransform:'uppercase', letterSpacing:'0.08em', borderBottom:'1px solid var(--bdr)', whiteSpace:'nowrap' } }, h);
-              }),
-              React.createElement('th', { style:{ padding:'0.4rem', background:'var(--dsub)', borderBottom:'1px solid var(--bdr)' } })
+    if(s==='timeline') return React.createElement('div',null,
+      form.milestones.map(function(m,i){
+        return React.createElement('div',{key:i,style:{display:'grid',gridTemplateColumns:'120px 1fr',gap:'0.5rem',marginBottom:'0.4rem'}},
+          React.createElement('input',{value:m.month,onChange:function(e){setForm(function(f){ var ms=f.milestones.slice(); ms[i]=Object.assign({},ms[i],{month:e.target.value}); return Object.assign({},f,{milestones:ms}); });},style:Object.assign({},inp_s,{padding:'0.35rem 0.5rem'}),placeholder:'Month'}),
+          React.createElement('input',{value:m.activity,onChange:function(e){setForm(function(f){ var ms=f.milestones.slice(); ms[i]=Object.assign({},ms[i],{activity:e.target.value}); return Object.assign({},f,{milestones:ms}); });},style:Object.assign({},inp_s,{padding:'0.35rem 0.5rem'}),placeholder:'Activity'})
+        );
+      }),
+      React.createElement('button',{onClick:function(){setForm(function(f){ return Object.assign({},f,{milestones:f.milestones.concat([{month:'',activity:''}])}); });},style:{marginTop:'0.35rem',padding:'0.3rem 0.65rem',borderRadius:5,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--l2)',cursor:'pointer',fontSize:'0.78rem'}},'+ Add Milestone')
+    );
+
+    if(s==='eval') return React.createElement('div',null,
+      sectionRow('Evaluation Methods','evalMethods',true,{ai:true}),
+      sectionRow('Reporting Schedule','reportingSchedule',true)
+    );
+
+    if(s==='portfolio') return React.createElement('div',null,
+      // Improvement #3 — Deadline entry
+      React.createElement('div',{className:'d-card',style:{marginBottom:'0.85rem'}},
+        React.createElement('div',{className:'d-card-head'},React.createElement('span',{className:'d-card-title'},'SUBMISSION DEADLINE')),
+        React.createElement('div',{className:'d-card-body'},
+          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.75rem'}},
+            React.createElement('div',null,
+              React.createElement('label',{style:lbl_s},'Deadline Date'),
+              React.createElement('input',{type:'date',value:form.submissionDeadline||'',onChange:function(e){setField('submissionDeadline',e.target.value);},style:inp_s})
+            ),
+            React.createElement('div',null,
+              React.createElement('label',{style:lbl_s},'Alert Days Before'),
+              React.createElement('select',{value:form.alertDays||'14',onChange:function(e){setField('alertDays',e.target.value);},style:inp_s},
+                ['7','14','21','30'].map(function(d){ return React.createElement('option',{key:d,value:d},d+' days before'); })
+              )
             )
           ),
-          React.createElement('tbody', null,
-            form.budgetLines.map(function(l, i) {
-              function cell(field, ph, w, type) {
-                return React.createElement('input', { type:type||'text', value:l[field]||'', placeholder:ph, style:{ width:w||'100%', padding:'0.28rem 0.4rem', border:'1px solid var(--bdr)', borderRadius:4, background:'var(--dsub)', color:'var(--dtxt)', fontSize:'0.77rem', boxSizing:'border-box' }, onChange:function(e){setBudgetLine(i,field,e.target.value);} });
-              }
-              return React.createElement('tr', { key:i, style:{ borderBottom:'1px solid var(--bdr)' } },
-                React.createElement('td', { style:{ padding:'0.3rem 0.4rem' } },
-                  React.createElement('select', { value:l.category||'Operations', style:{ padding:'0.28rem', border:'1px solid var(--bdr)', borderRadius:4, background:'var(--dsub)', color:'var(--dtxt)', fontSize:'0.77rem', width:'100%' }, onChange:function(e){setBudgetLine(i,'category',e.target.value);} },
-                    ['Personnel','Operations','Training','Equipment','Indirect','Other'].map(function(c){ return React.createElement('option',{key:c,value:c},c); })
-                  )
-                ),
-                React.createElement('td', { style:{ padding:'0.3rem 0.4rem', minWidth:160 } }, cell('item','Description')),
-                React.createElement('td', { style:{ padding:'0.3rem 0.4rem' } }, cell('quantity','1',50,'number')),
-                React.createElement('td', { style:{ padding:'0.3rem 0.4rem' } }, cell('unit','year',70)),
-                React.createElement('td', { style:{ padding:'0.3rem 0.4rem' } }, cell('grantAmt','0',80,'number')),
-                React.createElement('td', { style:{ padding:'0.3rem 0.4rem' } }, cell('matchAmt','0',80,'number')),
-                React.createElement('td', { style:{ padding:'0.3rem 0.4rem', textAlign:'center' } },
-                  React.createElement('button', { onClick:function(){removeBudgetLine(i);}, style:{ background:'none', border:'none', color:'var(--danger)', cursor:'pointer', fontSize:'1rem', padding:'0 0.25rem' } }, '✕')
-                )
-              );
-            }),
-            React.createElement('tr', { style:{ background:'var(--dsub)', fontWeight:700 } },
-              React.createElement('td', { colSpan:4, style:{ padding:'0.5rem 0.75rem', color:'var(--dtxt)', fontSize:'0.8rem' } }, 'TOTALS'),
-              React.createElement('td', { style:{ padding:'0.5rem 0.4rem', color:'var(--l5)', fontFamily:'var(--font-mono)' } }, '$'+Math.round(totals.grant).toLocaleString()),
-              React.createElement('td', { style:{ padding:'0.5rem 0.4rem', color:'var(--gold)', fontFamily:'var(--font-mono)' } }, '$'+Math.round(totals.match).toLocaleString()),
-              React.createElement('td', null)
-            )
-          )
+          deadlineAlert && React.createElement('div',{style:{marginTop:'0.6rem',padding:'0.5rem 0.75rem',borderRadius:6,background:deadlineAlert.level==='OK'?'rgba(91,196,110,0.08)':'rgba(252,129,129,0.08)',border:'1px solid '+deadlineAlert.color,fontSize:'0.78rem',fontWeight:700,color:deadlineAlert.color}},
+            (deadlineAlert.level==='CRITICAL'?'\uD83D\uDEA8':deadlineAlert.level==='URGENT'?'\u26A0\uFE0F':'\uD83D\uDCC5')+' '+deadlineAlert.msg)
         )
       ),
-      React.createElement('button', { onClick:addBudgetLine, style:{ fontSize:'0.78rem', padding:'0.35rem 0.85rem', border:'1px solid var(--bdr)', borderRadius:6, background:'var(--dsub)', color:'var(--l2)', cursor:'pointer', marginBottom:'1rem' } }, '+ Add Line Item'),
-      React.createElement('div', { style:{ display:'flex', gap:'1rem', fontWeight:700, fontSize:'0.85rem', padding:'0.75rem', background:'var(--dsub)', borderRadius:8, marginBottom:'1rem' } },
-        React.createElement('span', { style:{ color:'var(--l5)' } }, '🏦 Grant Request: $' + Math.round(totals.grant).toLocaleString()),
-        React.createElement('span', { style:{ color:'var(--gold)' } }, '🤝 Match: $' + Math.round(totals.match).toLocaleString()),
-        React.createElement('span', { style:{ color:'var(--dtxt)' } }, '📊 Total: $' + Math.round(totals.total).toLocaleString()),
-      ),
-      label('Budget Narrative', true), inp('budgetNarrative', 'Explain each major budget line — why it is needed, how the amount was determined, and how it connects to program outcomes...', true, 6),
-    );
-
-    if (sec.id === 'timeline') return React.createElement('div', null,
-      React.createElement('div', { style:{ overflowX:'auto' } },
-        React.createElement('table', { style:{ width:'100%', borderCollapse:'collapse', fontSize:'0.8rem' } },
-          React.createElement('thead', null,
-            React.createElement('tr', null,
-              ['Month(s)','Activity / Milestone'].map(function(h){ return React.createElement('th',{key:h,style:{padding:'0.4rem 0.6rem',background:'var(--dsub)',color:'var(--dmuted)',textAlign:'left',fontSize:'0.68rem',textTransform:'uppercase',borderBottom:'1px solid var(--bdr)'}},h); })
-            )
+      // Improvement #7 — Portfolio view
+      React.createElement('div',{className:'d-card'},
+        React.createElement('div',{className:'d-card-head'},React.createElement('span',{className:'d-card-title'},'GRANT PORTFOLIO')),
+        React.createElement('div',{className:'d-card-body'},
+          React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:'0.5rem',marginBottom:'0.75rem'}},
+            [{l:'Total Pipeline',v:'$'+Math.round(totalPipeline/1000)+'K',c:'var(--l2)'},
+             {l:'Awarded',v:'$'+Math.round(totalAwarded/1000)+'K',c:'var(--l5)'},
+             {l:'In Progress',v:String(pending.length),c:'var(--gold)'},
+             {l:'Close Rate',v:allGrants.length>0?Math.round(awarded.length/allGrants.length*100)+'%':'—',c:'var(--dtxt)'}
+            ].map(function(m){ return React.createElement('div',{key:m.l,style:{textAlign:'center',padding:'0.6rem',background:'var(--bg3)',borderRadius:6,border:'1px solid var(--bdr2)'}},
+              React.createElement('div',{style:{fontSize:'0.62rem',color:'var(--dmuted)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:'0.2rem'}},m.l),
+              React.createElement('div',{style:{fontSize:'1.1rem',fontWeight:700,color:m.c,fontFamily:'var(--font-mono)'}},m.v)
+            ); })
           ),
-          React.createElement('tbody', null,
-            form.milestones.map(function(ms, i) {
-              return React.createElement('tr', { key:i, style:{ borderBottom:'1px solid var(--bdr)' } },
-                React.createElement('td', { style:{ padding:'0.4rem 0.6rem', fontWeight:600, color:'var(--l2)', width:100, whiteSpace:'nowrap' } }, ms.month),
-                React.createElement('td', { style:{ padding:'0.4rem 0.6rem', color:'var(--dtxt)' } },
-                  React.createElement('input', { type:'text', value:ms.activity, style:{ width:'100%', padding:'0.3rem', border:'1px solid var(--bdr)', borderRadius:4, background:'var(--dsub)', color:'var(--dtxt)', fontSize:'0.8rem' },
-                    onChange:function(e){ setForm(function(f){ var ms2=f.milestones.slice(); ms2[i]=Object.assign({},ms2[i],{activity:e.target.value}); return Object.assign({},f,{milestones:ms2}); }); } })
-                )
-              );
-            })
-          )
+          allGrants.length === 0 && React.createElement('div',{style:{color:'var(--dmuted)',fontSize:'0.8rem',textAlign:'center',padding:'1rem'}},'No applications tracked yet. Submit this application to populate portfolio.')
+        )
+      ),
+      // Improvement #6 — Version history
+      versions.length > 0 && React.createElement('div',{className:'d-card',style:{marginTop:'0.85rem'}},
+        React.createElement('div',{className:'d-card-head'},React.createElement('span',{className:'d-card-title'},'VERSION HISTORY')),
+        React.createElement('div',{className:'d-card-body'},
+          versions.map(function(v,i){ return React.createElement('div',{key:i,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'0.4rem 0',borderBottom:'1px solid var(--bdr)',fontSize:'0.78rem'}},
+            React.createElement('div',null,
+              React.createElement('div',{style:{fontWeight:600,color:'var(--dtxt)'}},v.label),
+              React.createElement('div',{style:{fontSize:'0.65rem',color:'var(--dmuted)'}},new Date(v.ts).toLocaleString())
+            ),
+            React.createElement('button',{onClick:function(){restoreVersion(v);},style:{padding:'0.25rem 0.6rem',borderRadius:4,border:'1px solid var(--bdr2)',background:'var(--bg3)',color:'var(--l2)',cursor:'pointer',fontSize:'0.7rem'}},'Restore')
+          ); })
         )
       )
     );
 
-    if (sec.id === 'eval') return React.createElement('div', null,
-      label('Evaluation Methods', true), inp('evalMethods', 'How will you measure and verify outcomes? What data systems will you use?', true, 6),
-      label('Reporting Schedule', true), inp('reportingSchedule', 'When and how will you report results to the funder?', true, 3),
-    );
-
-    if (sec.id === 'attach') return React.createElement('div', null,
-      React.createElement('div', { style:{ padding:'1.5rem', background:'var(--dsub)', borderRadius:8, border:'2px dashed var(--bdr)', textAlign:'center', color:'var(--dmuted)', fontSize:'0.85rem' } },
-        React.createElement('div', { style:{ fontSize:'2rem', marginBottom:'0.5rem' } }, '📎'),
-        React.createElement('div', { style:{ fontWeight:600, marginBottom:'0.25rem' } }, 'Attachments'),
-        React.createElement('div', null, 'IRS 501(c)(3) determination letter, audited financials, board roster, organizational chart, letters of support'),
-        React.createElement('div', { style:{ marginTop:'0.75rem', fontSize:'0.75rem' } }, 'List attachments you will include with submission — upload functionality requires backend connection'),
-      ),
-      React.createElement('div', { style:{ marginTop:'1rem' } },
-        ['IRS 501(c)(3) Letter','Most Recent Audited Financial Statements','Board of Directors Roster','Organizational Chart','Letters of Support / MOU','Resumes of Key Personnel','Logic Model'].map(function(a) {
-          return React.createElement('div', { key:a, style:{ display:'flex', alignItems:'center', gap:'0.5rem', padding:'0.4rem 0', borderBottom:'1px solid var(--bdr)', fontSize:'0.82rem', color:'var(--dtxt)' } },
-            React.createElement('input', { type:'checkbox' }), a
-          );
-        })
-      )
+    if(s==='attach') return React.createElement('div',null,
+      React.createElement('div',{style:{fontSize:'0.82rem',color:'var(--dmuted)',marginBottom:'0.75rem',lineHeight:1.6}},'Checklist of required attachments. Assemble these as a packet with your application.'),
+      ['IRS 501(c)(3) Determination Letter','Most Recent Audited Financial Statements','Board of Directors Roster','Organizational Chart','Letters of Support / MOU from Partners',
+       'Resumes of Key Personnel','Logic Model / Theory of Change','Proof of Non-Discrimination Policy','Indirect Cost Rate Agreement (if applicable)'].map(function(a){
+        var key = 'attach_'+a.replace(/\s+/g,'_');
+        return React.createElement('div',{key:a,style:{display:'flex',alignItems:'center',gap:'0.5rem',padding:'0.45rem 0',borderBottom:'1px solid var(--bdr)',fontSize:'0.82rem',color:'var(--dtxt)'}},
+          React.createElement('input',{type:'checkbox',checked:!!(form[key]),onChange:function(e){setField(key,e.target.checked);},style:{flexShrink:0}}),
+          a
+        );
+      })
     );
 
     return null;
   }
 
-  // QC panel
-  var qcPanel = qcResults ? React.createElement('div', { style:{ margin:'1rem 0', padding:'0.75rem 1rem', borderRadius:8, background: qcResults.passed ? 'rgba(91,196,110,0.1)' : 'rgba(239,68,68,0.08)', border:'1px solid '+(qcResults.passed?'rgba(91,196,110,0.3)':'rgba(239,68,68,0.25)') } },
-    React.createElement('div', { style:{ fontWeight:700, fontSize:'0.82rem', color: qcResults.passed?'var(--l5)':'var(--danger)', marginBottom: qcResults.errors.length?'0.5rem':0 } },
-      qcResults.passed ? '✅ QC PASSED — Ready to export' : '❌ QC FAILED — ' + qcResults.errors.length + ' issue(s)'
+  // ── Improvement #9 — QC gate ──────────────────────────────────────────────
+  function runQC(){
+    var errs = [];
+    if(!form.orgEIN)          errs.push('EIN missing — required for all federal applications');
+    if(!form.projectSummary)  errs.push('Executive summary is blank');
+    if(!form.problemStatement)errs.push('Problem statement is blank');
+    if(!form.primaryGoal)     errs.push('Primary goal is blank');
+    if(!form.budgetNarrative) errs.push('Budget narrative is blank');
+    if(grantTotal < 1000)     errs.push('Budget request appears incomplete — check grant amount fields');
+    if(reqMatchPct > 0 && matchGap > 0) errs.push('Match contribution below required '+reqMatchPct+'% — add match sources');
+    if(!form.submissionDeadline) errs.push('Submission deadline not set — risk of missing funder deadline');
+    form.outcomes.forEach(function(o){ if(!o.target) errs.push('Outcome target blank: '+o.metric); });
+    if(!form.evalMethods)     errs.push('Evaluation methods section is blank');
+    setQcResults({ passed: errs.length===0, errors: errs });
+    if(errs.length===0) toast && toast({icon:'\u2705',title:'QC passed — ready to export'});
+    else toast && toast({icon:'\u26A0\uFE0F',title:errs.length+' issues found — see QC panel'});
+  }
+
+  // ── Improvement #9 — Export ───────────────────────────────────────────────
+  function exportGrant(){
+    setExporting(true);
+    var lines = [
+      'GRANT APPLICATION — '+form.grantName,
+      'Agency: '+form.agency,
+      'Prepared: '+new Date().toLocaleDateString(),
+      'Version: '+form.version,
+      '',
+      '=== ORGANIZATION INFORMATION ===',
+      'Organization: '+form.orgName,
+      'Address: '+form.orgAddress,
+      'EIN: '+form.orgEIN,
+      'Founded: '+form.orgFounded,
+      'Mission: '+form.orgMission,
+      'Contact: '+form.contactName+' | '+form.contactEmail+' | '+form.contactPhone,
+      '',
+      '=== PROJECT SUMMARY ===',
+      'Title: '+form.projectTitle,
+      'Amount Requested: $'+parseInt(form.projectAmount||0).toLocaleString(),
+      'Duration: '+form.projectDuration+' months',
+      'Start: '+form.projectStart,
+      '',
+      form.projectSummary,
+      '',
+      '=== PROBLEM STATEMENT ===',
+      form.problemStatement,
+      '',
+      'Target Population: '+form.targetPopulation,
+      'Geographic Area: '+form.geographicArea,
+      'Population Size: '+form.populationSize,
+      '',
+      '=== PRIMARY GOAL ===',
+      form.primaryGoal,
+      '',
+      '=== OUTCOME METRICS ===',
+    ].concat(form.outcomes.map(function(o){ return o.metric+': '+o.target+' ('+o.timeframe+')'; })).concat([
+      '',
+      '=== BUDGET SUMMARY ===',
+      'Total Grant Request: $'+Math.round(grantTotal).toLocaleString(),
+      'Match Contribution:  $'+Math.round(matchTotal).toLocaleString(),
+      'Total Budget:        $'+Math.round(totalBudget).toLocaleString(),
+      'Match Percentage: '+matchPct+'%',
+      '',
+      '=== BUDGET NARRATIVE ===',
+      form.budgetNarrative,
+      '',
+      '=== TIMELINE ===',
+    ]).concat(form.milestones.map(function(m){ return 'Month '+m.month+': '+m.activity; })).concat([
+      '',
+      '=== EVALUATION METHODS ===',
+      form.evalMethods,
+      '',
+      '=== REPORTING SCHEDULE ===',
+      form.reportingSchedule,
+      '',
+      '=== SUBMISSION DEADLINE ===',
+      form.submissionDeadline ? form.submissionDeadline+' ('+( deadlineAlert?deadlineAlert.msg:'') +')' : 'Not set',
+    ]);
+    var blob = new Blob([lines.join('\n')], {type:'text/plain'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = (form.grantName||'grant').replace(/[^a-zA-Z0-9]/g,'_')+'_v'+form.version+'.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+    setExporting(false);
+    toast && toast({icon:'\uD83D\uDCC4',title:'Export downloaded — assemble with attachments'});
+  }
+
+  var qcPanel = qcResults ? React.createElement('div',{style:{margin:'1rem 0',padding:'0.75rem 1rem',borderRadius:8,background:qcResults.passed?'rgba(91,196,110,0.1)':'rgba(239,68,68,0.08)',border:'1px solid '+(qcResults.passed?'rgba(91,196,110,0.3)':'rgba(239,68,68,0.25)')}},
+    React.createElement('div',{style:{fontWeight:700,fontSize:'0.82rem',color:qcResults.passed?'var(--l5)':'var(--danger)',marginBottom:qcResults.errors.length?'0.5rem':0}},
+      qcResults.passed ? '\u2705 QC PASSED \u2014 Ready to export' : '\u274C QC FAILED \u2014 '+qcResults.errors.length+' issue(s)'
     ),
-    qcResults.errors.map(function(e,i){ return React.createElement('div',{key:i,style:{fontSize:'0.78rem',color:'var(--danger)',paddingLeft:'0.5rem',marginTop:'0.2rem'}},'• '+e); })
+    qcResults.errors.map(function(e,i){ return React.createElement('div',{key:i,style:{fontSize:'0.78rem',color:'var(--danger)',paddingLeft:'0.5rem',marginTop:'0.2rem'}},'\u2022 '+e); })
   ) : null;
 
-  return React.createElement('div', { style:{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'1rem', overflowY:'auto' } },
-    React.createElement('div', { style:{ background:'var(--dbg)', borderRadius:12, width:'100%', maxWidth:780, padding:'1.5rem', position:'relative', margin:'auto' } },
+  return React.createElement('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:9999,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'1rem',overflowY:'auto'}},
+    React.createElement('div',{style:{background:'var(--dbg)',borderRadius:12,width:'100%',maxWidth:820,padding:'1.5rem',position:'relative',margin:'auto'}},
       // Header
-      React.createElement('div', { style:{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'1.25rem' } },
-        React.createElement('div', null,
-          React.createElement('div', { style:{ fontSize:'0.68rem', fontWeight:700, color:'var(--l2)', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:'0.2rem' } }, '📄 GRANT APPLICATION BUILDER'),
-          React.createElement('div', { style:{ fontWeight:700, color:'var(--dtxt)', fontSize:'1rem' } }, grant ? grant.name : 'New Application'),
-          React.createElement('div', { style:{ fontSize:'0.75rem', color:'var(--dmuted)', marginTop:'0.15rem' } }, grant ? grant.agency : ''),
+      React.createElement('div',{style:{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:'0.75rem'}},
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:'0.65rem',fontWeight:700,color:'var(--l2)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:'0.15rem'}},'\uD83D\uDCC4 GRANT APPLICATION BUILDER'),
+          React.createElement('div',{style:{fontWeight:700,color:'var(--dtxt)',fontSize:'1rem'}},grant ? grant.name : 'New Application'),
+          React.createElement('div',{style:{display:'flex',gap:'0.75rem',alignItems:'center',marginTop:'0.15rem'}},
+            React.createElement('div',{style:{fontSize:'0.72rem',color:'var(--dmuted)'}},grant ? grant.agency : ''),
+            // Improvement #2 — Live fit score
+            grant && React.createElement('div',{style:{fontSize:'0.72rem',fontWeight:700,color:liveScore>=90?'var(--l5)':liveScore>=75?'var(--gold)':'#fc8181'}},'\uD83D\uDCCA Live fit: '+liveScore+'%'),
+            deadlineAlert && React.createElement('div',{style:{fontSize:'0.72rem',fontWeight:700,color:deadlineAlert.color}},'\uD83D\uDCC5 '+deadlineAlert.msg)
+          )
         ),
-        React.createElement('button', { onClick:onClose, style:{ background:'none', border:'none', color:'var(--dmuted)', cursor:'pointer', fontSize:'1.5rem', lineHeight:1, padding:'0 0.25rem' } }, '✕')
+        React.createElement('button',{onClick:onClose,style:{background:'none',border:'none',color:'var(--dmuted)',cursor:'pointer',fontSize:'1.5rem',lineHeight:1,padding:'0 0.25rem'}},'\u2715')
       ),
-
-      // Progress bar
-      React.createElement('div', { style:{ marginBottom:'1.25rem' } },
-        React.createElement('div', { style:{ display:'flex', gap:'0.25rem', marginBottom:'0.5rem', flexWrap:'wrap' } },
-          SECTIONS.map(function(s, i) {
-            return React.createElement('button', { key:s.id, onClick:function(){setStep(i);},
-              style:{ fontSize:'0.65rem', padding:'0.25rem 0.5rem', borderRadius:4, border:'none', cursor:'pointer', fontWeight:600, whiteSpace:'nowrap',
-                background: i===step ? 'var(--l2)' : i<step ? 'rgba(91,196,110,0.15)' : 'var(--dsub)',
-                color: i===step ? '#fff' : i<step ? 'var(--l5)' : 'var(--dmuted)' } },
-              s.icon + ' ' + s.label + (s.required?' *':'')
+      // Progress
+      React.createElement('div',{style:{marginBottom:'1rem'}},
+        React.createElement('div',{style:{display:'flex',gap:'0.25rem',marginBottom:'0.4rem',flexWrap:'wrap'}},
+          SECTIONS.map(function(s,i){
+            return React.createElement('button',{key:s.id,onClick:function(){setStep(i);},
+              style:{fontSize:'0.62rem',padding:'0.22rem 0.45rem',borderRadius:4,border:'none',cursor:'pointer',fontWeight:600,whiteSpace:'nowrap',
+                background:i===step?'var(--l2)':i<step?'rgba(91,196,110,0.15)':'var(--dsub)',
+                color:i===step?'#fff':i<step?'var(--l5)':'var(--dmuted)'}},
+              s.icon+' '+s.label+(s.required?' *':'')
             );
           })
         ),
-        React.createElement('div', { style:{ height:4, background:'var(--dsub)', borderRadius:2 } },
-          React.createElement('div', { style:{ height:'100%', width:progress+'%', background:'var(--l2)', borderRadius:2, transition:'width 0.3s' } })
+        React.createElement('div',{style:{height:4,background:'var(--dsub)',borderRadius:2}},
+          React.createElement('div',{style:{height:'100%',width:progress+'%',background:'var(--l2)',borderRadius:2,transition:'width 0.3s'}})
         )
       ),
-
-      // Section title
-      React.createElement('div', { style:{ fontWeight:700, color:'var(--dtxt)', fontSize:'0.95rem', marginBottom:'0.75rem' } },
-        sec.icon + ' ' + sec.label + (sec.required ? ' *' : ' (optional)')
-      ),
-
-      // Section content
+      React.createElement('div',{style:{fontWeight:700,color:'var(--dtxt)',fontSize:'0.9rem',marginBottom:'0.65rem'}},sec.icon+' '+sec.label+(sec.required?' *':' (optional)')),
       renderSection(),
-
-      // QC results
       qcPanel,
-
-      // Navigation + actions
-      React.createElement('div', { style:{ display:'flex', gap:'0.5rem', marginTop:'1.5rem', flexWrap:'wrap', alignItems:'center' } },
-        step > 0 ? React.createElement('button', { onClick:function(){setStep(step-1);}, style:{ padding:'0.5rem 1rem', borderRadius:6, border:'1px solid var(--bdr)', background:'var(--dsub)', color:'var(--dtxt)', cursor:'pointer', fontSize:'0.83rem' } }, '← Back') : null,
-        step < SECTIONS.length - 1 ?
-          React.createElement('button', { onClick:function(){setStep(step+1);}, style:{ padding:'0.5rem 1.1rem', borderRadius:6, border:'none', background:'var(--l2)', color:'#fff', cursor:'pointer', fontSize:'0.83rem', fontWeight:700 } }, 'Next →')
-          : null,
-        React.createElement('div', { style:{ flex:1 } }),
-        React.createElement('button', { onClick:saveVersion, style:{ padding:'0.5rem 1rem', borderRadius:6, border:'1px solid var(--bdr)', background:'var(--dsub)', color:'var(--l2)', cursor:'pointer', fontSize:'0.83rem', fontWeight:600 } },
-          '💾 Save Draft' + (form.version > 1 ? ' (v'+(form.version)+')' : '')
-        ),
-        React.createElement('button', { onClick:runQC, style:{ padding:'0.5rem 1rem', borderRadius:6, border:'1px solid var(--bdr)', background:'var(--dsub)', color:'var(--gold)', cursor:'pointer', fontSize:'0.83rem', fontWeight:600 } }, '🔍 Run QC'),
-        React.createElement('button', { onClick:exportGrant, disabled:exporting, style:{ padding:'0.5rem 1.1rem', borderRadius:6, border:'none', background: qcResults&&qcResults.passed?'var(--l5)':'var(--dsub)', color: qcResults&&qcResults.passed?'#fff':'var(--dmuted)', cursor: qcResults&&qcResults.passed?'pointer':'not-allowed', fontSize:'0.83rem', fontWeight:700 } },
-          exporting ? '⏳ Exporting...' : '📤 Export'
-        ),
-        versions.length > 0 ? React.createElement('div', { style:{ fontSize:'0.72rem', color:'var(--dmuted)', width:'100%', marginTop:'0.25rem' } }, '📦 ' + versions.length + ' saved version(s)') : null,
+      React.createElement('div',{style:{display:'flex',gap:'0.5rem',marginTop:'1.25rem',flexWrap:'wrap',alignItems:'center'}},
+        step > 0 && React.createElement('button',{onClick:function(){setStep(step-1);},style:{padding:'0.5rem 1rem',borderRadius:6,border:'1px solid var(--bdr)',background:'var(--dsub)',color:'var(--dtxt)',cursor:'pointer',fontSize:'0.83rem'}},'← Back'),
+        step < SECTIONS.length-1 && React.createElement('button',{onClick:function(){setStep(step+1);},style:{padding:'0.5rem 1.1rem',borderRadius:6,border:'none',background:'var(--l2)',color:'#fff',cursor:'pointer',fontSize:'0.83rem',fontWeight:700}},'Next \u2192'),
+        React.createElement('div',{style:{flex:1}}),
+        React.createElement('button',{onClick:function(){saveVersion();},style:{padding:'0.5rem 1rem',borderRadius:6,border:'1px solid var(--bdr)',background:'var(--dsub)',color:'var(--l2)',cursor:'pointer',fontSize:'0.83rem',fontWeight:600}},'\uD83D\uDCBE Save Version '+(form.version>1?'(v'+form.version+')':'')),
+        React.createElement('button',{onClick:runQC,style:{padding:'0.5rem 1rem',borderRadius:6,border:'1px solid var(--bdr)',background:'var(--dsub)',color:'var(--gold)',cursor:'pointer',fontSize:'0.83rem',fontWeight:600}},'\uD83D\uDD0D Run QC'),
+        React.createElement('button',{onClick:exportGrant,disabled:exporting,style:{padding:'0.5rem 1.1rem',borderRadius:6,border:'none',background:qcResults&&qcResults.passed?'var(--l5)':'var(--dsub)',color:qcResults&&qcResults.passed?'#fff':'var(--dmuted)',cursor:qcResults&&qcResults.passed?'pointer':'not-allowed',fontSize:'0.83rem',fontWeight:700}},exporting?'\u23F3 Exporting...':'\uD83D\uDCE4 Export Packet')
       )
     )
   );
@@ -14647,7 +15562,7 @@ function BizLicensingLeads({ platform, update, toast, setActive }) {
 
   // -- LIVE: fetch partners from API when backend live --
   var SEED_LEADS = [
-    {id:'ll1',orgName:'New Beginnings Recovery Center',contact:'Pastor David Osei',email:'dosei@newbeginnings.org',phone:'318-555-0241',orgType:'Faith-Based Recovery',members:45,source:'Referral — Refined Recovery Network',stage:'demo_scheduled',notes:'Referred by Jeff. Demo scheduled Apr 5.',createdAt:'2026-03-20'},
+    {id:'ll1',orgName:'New Beginnings Recovery Center',contact:'Pastor David Osei',email:'dosei@newbeginnings.org',phone:'318-555-0241',orgType:'Faith-Based Recovery',members:45,source:'Referral — Refined Recovery Network',stage:'demo_scheduled',notes:'Demo scheduled Apr 5.',createdAt:'2026-03-20'},
     {id:'ll2',orgName:'Baton Rouge Reentry Coalition',contact:'Program Director',email:'programs@brreentry.org',phone:'225-555-0382',orgType:'Government/Reentry',members:120,source:'Web Search',stage:'qualified',notes:'Found us via Louisiana Workforce Commission directory.',createdAt:'2026-03-22'},
     {id:'ll3',orgName:'Christ Community Recovery',contact:'Elder Mark Davis',email:'mdavis@christcommunity.church',phone:'985-555-0193',orgType:'Faith-Based Recovery',members:28,source:'Word of Mouth',stage:'new',notes:'Called the Refined Recovery Network line asking about the platform.',createdAt:'2026-03-25'},
   ];
@@ -29990,6 +30905,10 @@ function renderSection() {
         return React.createElement(CohortManager, {platform:platform,update:update,toast:toast,session:previewSession,setActive:setActiveSection});
       case 'trade-partners':
         return React.createElement(TradePartnersPanel, {platform:platform,update:update,toast:toast,session:previewSession,setActive:setActiveSection});
+      case 'grant-os':
+        return React.createElement(GrantOSPanel, {platform:platform,grant:null,onClose:function(){setActiveSection('grant-engine');},toast:toast,update:update});
+      case 'grant-email':
+        return React.createElement(GrantEmailCenter, {platform:platform,update:update,toast:toast,session:previewSession,setActive:setActiveSection});
       case 'grant-engine':
         return React.createElement(GrantEngine, {platform:platform,update:update,toast:toast,session:previewSession,setActive:setActiveSection});
       case 'sub-operator-onboarding':
@@ -42661,7 +43580,7 @@ function RecoveryGroupsPanel({ platform, update, session, toast }) {
     {id:'g1', name:'Port Allen Men\'s Group', schedule:'Mon/Wed/Fri 7:00 PM', lead:'James T.', members:12, type:'Men'},
     {id:'g2', name:'Pineville Mixed Group', schedule:'Tue/Thu 6:30 PM', lead:'Sarah M.', members:8, type:'Mixed'},
     {id:'g3', name:'LaPlace Women\'s Group', schedule:'Wed 5:30 PM / Sat 10:00 AM', lead:'Angela W.', members:6, type:'Women'},
-    {id:'g4', name:'Online Accountability', schedule:'Daily 8:00 AM', lead:'Jeff Walthers', members:22, type:'Online'},
+    {id:'g4', name:'Online Accountability', schedule:'Daily 8:00 AM', lead:'Chuck Edwards', members:22, type:'Online'},
   ];
   return React.createElement('div', {style:{maxWidth:680, margin:'0 auto', padding:'1rem'}},
     React.createElement('div', {className:'lvl-header', style:{'--acc':'var(--l5)'}},
@@ -42685,7 +43604,7 @@ function RecoveryGroupsPanel({ platform, update, session, toast }) {
 // -- CHURCH GROUPS -------------------------------------------------------------
 function ChurchGroupsPanel({ platform, update, session, toast }) {
   var GROUPS = [
-    {id:'c1', name:'Bible Study — Acts', schedule:'Tuesday 7:00 PM', lead:'Pastor Jeff', topic:'The book of Acts — apostolic foundations', scripture:'Acts 2:38'},
+    {id:'c1', name:'Bible Study — Acts', schedule:'Tuesday 7:00 PM', lead:'Pastor Chuck', topic:'The book of Acts — apostolic foundations', scripture:'Acts 2:38'},
     {id:'c2', name:'Apostolic Doctrine Class', schedule:'Thursday 6:30 PM', lead:'Elder Davis', topic:'Oneness theology — who is Jesus?', scripture:'Deuteronomy 6:4'},
     {id:'c3', name:'Men\'s Prayer', schedule:'Saturday 6:00 AM', lead:'Charles Edwards', topic:'Intercession, warfare, and accountability', scripture:'James 5:16'},
     {id:'c4', name:'New Converts Class', schedule:'Sunday after service', lead:'Minister Parks', topic:'Repentance, baptism in Jesus\' name, Holy Ghost', scripture:'John 3:5'},
@@ -51127,6 +52046,18 @@ window._calebContextResponse = function(section, userQuery) {
       speak(cand.length+" workforce candidates, "+emp.length+" employer partner"+(emp.length!==1?'s':'')+" in the pipeline. A man who works builds more than income — he builds dignity. What do you need to move on today?");
     },
 
+    'grant-email': function() {
+      var q = []; try{ q = JSON.parse(localStorage.getItem('rrn_grant_email_queue')||'[]'); }catch(e){}
+      var pending = q.filter(function(e){ return e.status==='pending' && e.aiDraft; }).length;
+      var waiting = q.filter(function(e){ return e.status==='pending' && !e.aiDraft; }).length;
+      if(pending > 0) {
+        speak(pending+' draft'+(pending>1?'s':'')+' waiting for your approval. Real talk — those funder emails need a response from you, not Caleb. Review the draft, make any edits, then approve and Gmail opens with it ready to send. What do you want to address first?');
+      } else if(waiting > 0) {
+        speak(waiting+' funder email'+(waiting>1?'s':'')+' logged but not drafted yet. Hit Draft with Caleb AI on each one. The Word says in the multitude of counsellors there is safety — and Caleb is your grant counsel. Let’s get those drafts done.');
+      } else {
+        speak('Grant email command center open. When a funder replies to any application, log it here and Caleb will draft the response. You review, approve, and Gmail sends it. Nothing goes out without your sign-off. Any funder emails come in lately?');
+      }
+    },
     'grant-engine': function() {
       var grants = platform.grantApplications || [];
       var drafts = grants.filter(function(g){return g.status==='draft';}).length;
@@ -51876,6 +52807,8 @@ window._cSend=function(){
     { id:'nav:housing',        score:0, patterns:['housing','house','room','bed','placement','shelter','where to live','residential'] },
     { id:'nav:workforce',      score:0, patterns:['job','work','employment','workforce','career','hire','employer','placement','resume'] },
     { id:'nav:grant-engine',   score:0, patterns:['grant','funding','application','apply for money','write grant','grant engine','find grants','grant catalog'] },
+    { id:'nav:grant-email',    score:0, patterns:['grant email','funder email','email funder','reply to funder','grant inbox','approve email','email approval','funder replied','respond to grant'] },
+    { id:'nav:grant-os',       score:0, patterns:['grant os','grant simulation','simulate grant','test grant','grant pipeline','grant lifecycle','launch os','grant qa','grant repair','grant audit'] },
     { id:'nav:unified-finance',score:0, patterns:['finance','financial','money','budget','donation','revenue','esm','fiscal','accounting','ledger','income'] },
     { id:'nav:alerts',         score:0, patterns:['alert','notification','warning','urgent','crisis','emergency','flag','critical'] },
     { id:'nav:community-wall', score:0, patterns:['community','wall','post','share','feed','social','announcement board'] },
@@ -52675,10 +53608,14 @@ setTimeout(function(){
       };
     }catch(e){}
   }
-  // Only attempt if on file:// (local dev) — on HTTPS Ollama isn't available
+  // file://: 1 silent attempt only — Ollama not expected locally during testing
+  // https://: no attempt — Ollama is localhost-only
   if(window.location.protocol === 'file:'){
-    setTimeout(connect, 4000);
+    // Override to 1 max attempt on file:// — 3 failures in log is noise
+    _wsMaxAttempts = 1;
+    setTimeout(connect, 5000);
   }
+  // On HTTPS (GitHub Pages): never attempt — WS is localhost only
   document.addEventListener('click',function(){});
 })();
 
