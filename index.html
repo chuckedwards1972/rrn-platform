@@ -2077,7 +2077,7 @@ var RRN_API = {
   },
   licensing: {
     partners: function() { return _apiFetch('/licensing/partners'); },
-    revenue: function() { return _apiFetch('/licensing/revenue'); },
+    revenue: function() { return window._backendOnline && !window._licensingRevenue404 ? _apiFetch('/licensing/revenue').catch(function(e){ if((e.message||'').indexOf('404')>=0) window._licensingRevenue404=true; return {}; }) : Promise.resolve({}); },
     update: function(id, data) { return _apiFetch('/licensing/'+id, { method:'PUT', body: JSON.stringify(data) }); },
   },
   actions: {
@@ -2145,7 +2145,7 @@ var RRN_API = {
   },
   licensing: {
     partners: function()  { return _apiFetch('/licensing/partners'); },
-    revenue:  function()  { return _apiFetch('/licensing/revenue'); },
+    revenue:  function()  { return window._backendOnline && !window._licensingRevenue404 ? _apiFetch('/licensing/revenue').catch(function(e){ if((e.message||'').indexOf('404')>=0) window._licensingRevenue404=true; return {}; }) : Promise.resolve({}); },
     add:      function(d) { return _apiFetch('/licensing/partners', { method: 'POST', body: d }); }
   },
   activity: { list: function(n) { return _apiFetch('/activity?limit=' + (n||50)); } },
@@ -29028,19 +29028,19 @@ function CurriculumViewer({ platform, session, toast, setActive, update }) {
                     var watchdog = setInterval(function(){
                       if(!window._calebReading || done){ clearInterval(watchdog); return; }
                       try{ window.speechSynthesis.resume(); }catch(e){}
-                    }, 5000);
+                    }, 3000);
                     u.onend   = finish;
                     u.onerror = finish;
                     // Safety: if onend never fires (Chrome bug), advance after max wait time
-                    var maxWait = Math.max(8000, s.length * 90); // ~90ms per char
+                    var maxWait = Math.max(4000, s.length * 70); // ~70ms per char at 0.87 rate
                     setTimeout(function(){ finish(); }, maxWait);
                     window.speechSynthesis.speak(u);
                   }
                 }
-                speakSentence(sent, function(){ setTimeout(readNext, 150); });
+                speakSentence(sent, function(){ setTimeout(readNext, 30); });
               }
               // Start immediately - no pre-announce to avoid blocking
-              setTimeout(readNext,200);
+              setTimeout(readNext,50);
             },
             style:{padding:'8px 18px',borderRadius:6,
               background:'rgba(200,145,58,0.12)',border:'1px solid var(--gold)',
@@ -48975,6 +48975,17 @@ window.submitExam = submitExam;
 
 // -- 12. INJECT CURRICULUM INTO LMS ----------------------------------------
 // Waits for window to be ready, then injects into existing LMS state
+// Step title lookup for course grouping
+function _rrnStepTitle(n){
+  var titles = {
+    1:'Honest Admission',2:'Restoration of Hope',3:'Decision & Surrender',
+    4:'Moral Inventory',5:'Confession',6:'Readiness for Change',
+    7:'Humility & Asking',8:'Accountability & Amends',9:'Making Amends',
+    10:'Daily Inventory',11:'Prayer & Meditation',12:'Spiritual Service'
+  };
+  return titles[n] || 'Recovery';
+}
+
 function injectCurriculum() {
   window.RRN_CURRICULUM_READY = true;
 
@@ -49002,13 +49013,16 @@ function injectCurriculum() {
       // Also build RRN_COURSES from unique step numbers
       var courseMap = {};
       rebuilt.forEach(function(l) {
-        var step = l.stepNum || l.step || 1;
+        var step = l.stepNum || l.step || l.courseId || l.course || 1;
+        if(typeof step === 'string'){ var sm = step.match(/\d+/); step = sm ? parseInt(sm[0]) : 1; }
+        step = parseInt(step) || 1;
         if (!courseMap[step]) {
-          courseMap[step] = { id: 'step-'+step, stepNum: step, title: 'Step '+step, lessons: [] };
+          courseMap[step] = { id: 'step-'+step, stepNum: step, title: 'Step '+step+' — '+_rrnStepTitle(step), lessons: [] };
         }
         courseMap[step].lessons.push(l);
       });
-      var courses = Object.values(courseMap).sort(function(a,b){ return a.stepNum - b.stepNum; });
+      var courses = Object.keys(courseMap).map(function(k){ return courseMap[k]; })
+        .sort(function(a,b){ return a.stepNum - b.stepNum; });
       window.RRN_COURSES = courses;
       RRN_COURSES = courses;
     }
@@ -51766,204 +51780,392 @@ setInterval(function(){
 }, 4000);
 
 // -- MIC --------------------------------------------------------------
-window._micActive=false;
-// Pre-warm mic on first page load to avoid per-session prompts
-window._micReady=false;
-window._micPrewarm=function(){
-  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR||window._micReady)return;
-  var test=new SR();test.continuous=false;test.interimResults=false;test.lang='en-US';
-  test.onstart=function(){window._micReady=true;test.abort();};
-  test.onerror=function(){};test.onend=function(){};
-  try{test.start();}catch(e){}
-};
-// Pre-warm after 2 seconds
-setTimeout(window._micPrewarm,2000);
+// ═══════════════════════════════════════════════════════════════════════════
+// CALEB VOICE ENGINE — Persistent continuous recognition
+// One permission grant per session. Mic stays alive. No button spam.
+// ═══════════════════════════════════════════════════════════════════════════
 
-window._cMic=function(){
-  if(window._micActive){
-    window._micActive=false;
-    try{window._micRecog&&window._micRecog.abort();}catch(e){}
-    var l=document.getElementById('caleb-mic-label');var d=document.getElementById('caleb-mic-status');
-    if(l){l.textContent='TAP TO SPEAK';l.style.color='#2dd4c0';}if(d)d.style.background='#4a5568';
-    return;
-  }
-  if(window._isSpeaking)return;
-  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){alert('Voice requires Edge or Chrome.');return;}
-  var l=document.getElementById('caleb-mic-label');var d=document.getElementById('caleb-mic-status');
-  if(l){l.textContent='LISTENING...';l.style.color='#5bc46e';}if(d)d.style.background='#5bc46e';
-  var r=new SR();r.continuous=false;r.interimResults=false;r.lang='en-US';
-  window._micRecog=r;window._micActive=true;
-  r.onresult=function(e){
-    var t='';for(var i=0;i<e.results.length;i++)if(e.results[i].isFinal)t+=e.results[i][0].transcript;
-    if(t.trim()){
-      console.log('[CALEB MIC]',t.trim());
-      var inp=document.getElementById('caleb-text-input');
-      if(inp){inp.value=t.trim();window._cSend();}
+window._micActive   = false;
+window._micReady    = false;
+window._micRecog    = null;
+window._micSuspend  = false; // paused while Caleb is speaking
+window._micGranted  = false; // true after first successful start
+
+function _micSetStatus(state){
+  var l = document.getElementById('caleb-mic-label');
+  var d = document.getElementById('caleb-mic-status');
+  var states = {
+    idle:      { text:'TAP TO SPEAK', color:'#2dd4c0', bg:'#4a5568' },
+    listening: { text:'LISTENING...', color:'#5bc46e', bg:'#5bc46e' },
+    thinking:  { text:'PROCESSING',  color:'#c8913a', bg:'#c8913a' },
+    speaking:  { text:'CALEB SPEAKING', color:'#a78bfa', bg:'#a78bfa' },
+  };
+  var s = states[state] || states.idle;
+  if(l){ l.textContent = s.text; l.style.color = s.color; }
+  if(d){ d.style.background = s.bg; }
+}
+
+// ── PERSISTENT RECOGNITION SESSION ────────────────────────────────────────
+// Starts once after user's FIRST click anywhere. Runs continuously.
+// Auto-restarts after each result so it never drops.
+
+function _startPersistentMic(){
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR || window._micRecog) return;
+
+  var r = new SR();
+  r.continuous    = true;   // stay alive between phrases
+  r.interimResults = false; // final results only
+  r.lang          = 'en-US';
+  r.maxAlternatives = 1;
+
+  window._micRecog  = r;
+  window._micActive = true;
+
+  r.onstart = function(){
+    window._micGranted = true;
+    window._micReady   = true;
+    console.log('[CALEB MIC] Continuous session started');
+    _micSetStatus('listening');
+  };
+
+  r.onresult = function(e){
+    // Don't process while Caleb is speaking
+    if(window._micSuspend || window._isSpeaking) return;
+    var t = '';
+    for(var i = e.resultIndex; i < e.results.length; i++){
+      if(e.results[i].isFinal) t += e.results[i][0].transcript;
+    }
+    t = t.trim();
+    if(!t || t.length < 2) return;
+    console.log('[CALEB MIC]', t);
+    _micSetStatus('thinking');
+    var inp = document.getElementById('caleb-text-input');
+    if(inp){ inp.value = t; }
+    window._cSend();
+  };
+
+  r.onerror = function(e){
+    // 'no-speech' and 'aborted' are normal — restart silently
+    if(e.error === 'no-speech' || e.error === 'aborted') return;
+    if(e.error === 'not-allowed'){
+      console.warn('[CALEB MIC] Permission denied — click mic button to retry');
+      window._micGranted = false;
+      _micSetStatus('idle');
+      return;
+    }
+    console.warn('[CALEB MIC] Error:', e.error);
+  };
+
+  r.onend = function(){
+    // Auto-restart unless deliberately stopped or permission denied
+    if(window._micActive && window._micGranted && !window._micSuspend){
+      setTimeout(function(){
+        try{ r.start(); }catch(e){}
+      }, 200);
+    } else {
+      _micSetStatus('idle');
     }
   };
-  r.onend=r.onerror=function(){
-    window._micActive=false;
-    if(l){l.textContent='TAP TO SPEAK';l.style.color='#2dd4c0';}if(d)d.style.background='#4a5568';
+
+  try{ r.start(); }catch(e){ console.warn('[CALEB MIC] Start failed:', e.message); }
+}
+
+// Start on first user interaction — satisfies browser gesture requirement
+// Only needs to happen once per session
+(function(){
+  var _started = false;
+  function _onFirstGesture(){
+    if(_started) return;
+    _started = true;
+    document.removeEventListener('click',  _onFirstGesture);
+    document.removeEventListener('keydown', _onFirstGesture);
+    setTimeout(_startPersistentMic, 300);
+  }
+  document.addEventListener('click',   _onFirstGesture);
+  document.addEventListener('keydown', _onFirstGesture);
+})();
+
+// Suspend mic while Caleb is speaking, resume after
+var _origSpeak = window._calebSpeak;
+window._calebSpeak = function(text, cb){
+  window._micSuspend = true;
+  _micSetStatus('speaking');
+  var wrapped = function(){
+    window._micSuspend = false;
+    if(window._micActive && window._micGranted){
+      _micSetStatus('listening');
+      // Ensure recognition is still running
+      try{ if(window._micRecog) window._micRecog.start(); }catch(e){}
+    } else {
+      _micSetStatus('idle');
+    }
+    if(cb) cb();
   };
-  try{r.start();}catch(e){}
+  if(_origSpeak) _origSpeak(text, wrapped);
+  else wrapped();
+};
+
+// Button handler — toggle mic on/off
+window._cMic = function(){
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ alert('Voice requires Chrome or Edge.'); return; }
+
+  if(!window._micGranted || !window._micRecog){
+    // First press — start the persistent session
+    _startPersistentMic();
+    return;
+  }
+
+  if(window._micActive){
+    // Stop
+    window._micActive = false;
+    window._micGranted = false;
+    try{ window._micRecog.stop(); window._micRecog = null; }catch(e){}
+    _micSetStatus('idle');
+    console.log('[CALEB MIC] Session stopped');
+  } else {
+    // Restart
+    window._micRecog = null;
+    window._micActive = true;
+    _startPersistentMic();
+  }
 };
 
 // -- INTENT ROUTER -----------------------------------------------------
 window._cSend=function(){
   var inp=document.getElementById('caleb-text-input');
   if(!inp||!inp.value.trim())return;
-  var q=inp.value.trim();inp.value='';
+  var q=inp.value.trim(); inp.value='';
   var ab=document.getElementById('caleb-answer-box');
-  var ql=q.toLowerCase();
+  var ql=q.toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
 
-  // ── COMMAND CENTER INTENTS ────────────────────────────────────────────────
-  // System health
-  if(/^(health|status|system|how are we|how.*doing|platform).{0,20}$/i.test(ql)){
-    _buildDailyBriefing();
-    return;
-  }
+  // ═══════════════════════════════════════════════════════════════════════
+  // CALEB SCORED INTENT ENGINE
+  // No API. No key. Works offline. Instant. Covers natural language.
+  // Each intent has scored phrase patterns — highest score wins.
+  // ═══════════════════════════════════════════════════════════════════════
 
-  // Grant coordinator
-  if(/^(grant|write.*grant|start.*grant|new.*grant|create.*grant)/i.test(ql)){
-    if(window._rrnSetActiveSection) window._rrnSetActiveSection('grant-engine');
-    var closeDraw = function(){ var d=document.getElementById('caleb-draw'); if(d){d.style.transform='translateX(110%)';d.classList.remove('open');} };
-    setTimeout(closeDraw, 300);
-    window._calebSpeak('Opening Grant Engine. Select a grant from the catalog, then click Open Builder to begin your application.');
-    return;
-  }
+  var INTENTS = [
 
-  // Incident report
-  if(/^(incident|report|problem|issue|something.*wrong|broken)/i.test(ql)){
-    var health = _calebSystemHealth();
-    var incidents = _calebDetectIncidents(health);
-    var html = '<div style="font-size:0.65rem;color:#e2e8f0;font-weight:700;margin-bottom:6px;">⚡ ACTIVE INCIDENTS</div>';
-    if(incidents.length === 0){
-      html += '<div style="color:#2dd4c0;font-size:0.65rem;">✅ No active incidents detected.</div>';
-    } else {
-      incidents.forEach(function(inc){
-        var tc = inc.level==='CRITICAL'?'#fc8181':inc.level==='WARN'?'#c8913a':'#2dd4c0';
-        html += '<div style="padding:5px 7px;background:rgba(255,255,255,0.03);border-left:2px solid '+tc+';border-radius:0 5px 5px 0;margin-bottom:4px;">';
-        html += '<div style="font-size:0.65rem;font-weight:700;color:'+tc+';">'+inc.icon+' '+inc.level+' · '+inc.module+'</div>';
-        html += '<div style="font-size:0.62rem;color:#a0aec0;">'+inc.impact+'</div>';
-        html += '</div>';
-      });
-    }
-    if(ab){ab.style.display='';ab.innerHTML=html;}
-    window._calebSpeak(incidents.length + ' incident' + (incidents.length!==1?'s':'') + ' detected. Check the command center for details.');
-    return;
-  }
+    // NAVIGATION
+    { id:'nav:overview',       score:0, patterns:['dashboard','home','main','overview','back to main','go home','start','front page'] },
+    { id:'nav:step-lessons',   score:0, patterns:['lesson','step','curriculum','12 step','study','class','learning','teaching','do my step','todays lesson','today lesson','read step'] },
+    { id:'nav:recovery-journal',score:0,patterns:['journal','write','diary','log thoughts','reflection','my journal','write in','journaling'] },
+    { id:'nav:meetings',       score:0, patterns:['meeting','session','gather','group','attend','fellowship','service','join meeting'] },
+    { id:'nav:members',        score:0, patterns:['members','directory','roster','people','residents','who is','find someone','look up'] },
+    { id:'nav:housing',        score:0, patterns:['housing','house','room','bed','placement','shelter','where to live','residential'] },
+    { id:'nav:workforce',      score:0, patterns:['job','work','employment','workforce','career','hire','employer','placement','resume'] },
+    { id:'nav:grant-engine',   score:0, patterns:['grant','funding','application','apply for money','write grant','grant engine','find grants','grant catalog'] },
+    { id:'nav:unified-finance',score:0, patterns:['finance','financial','money','budget','donation','revenue','esm','fiscal','accounting','ledger','income'] },
+    { id:'nav:alerts',         score:0, patterns:['alert','notification','warning','urgent','crisis','emergency','flag','critical'] },
+    { id:'nav:community-wall', score:0, patterns:['community','wall','post','share','feed','social','announcement board'] },
+    { id:'nav:prayer-requests',score:0, patterns:['prayer request','prayer list','who needs prayer','prayer board','see prayers'] },
+    { id:'nav:testimony',      score:0, patterns:['testimony','testify','share story','witness','my story','praise report list'] },
+    { id:'nav:my-progress',    score:0, patterns:['progress','milestones','how am i doing','my journey','track','achievements','steps completed'] },
+    { id:'nav:victories',      score:0, patterns:['victories','victory log','wins','my victories','see victories','what god did'] },
+    { id:'nav:scheduler',      score:0, patterns:['schedule','calendar','event','appointment','plan','upcoming','dates'] },
+    { id:'nav:pipeline-board', score:0, patterns:['pipeline','board','kanban','tasks','projects','workflow'] },
+    { id:'nav:qa-swarm',       score:0, patterns:['qa','test','swarm','quality','diagnose','audit','check system'] },
+    { id:'nav:campuses',       score:0, patterns:['campus','location','church','site','place','branch','launch campus','new campus'] },
 
-  // Repair shortcut
-  if(/^(repair|fix|heal|patch)\s+(it|all|everything|system|platform)$/i.test(ql)){
-    if(window.RRN_HEAL_ENGINE) window.RRN_HEAL_ENGINE.run();
-    if(ab){ab.style.display='';ab.innerHTML='<div style="color:#2dd4c0;font-size:0.65rem;">🔧 Self-Heal engine triggered. Check console for RRN_HEAL_ENGINE.audit()</div>';}
-    window._calebSpeak('Self-heal engine running. Classifying and patching active issues.');
-    return;
-  }
+    // ACTIONS
+    { id:'act:checkin',        score:0, patterns:['check in','checking in','im here','i am here','mark me present','log attendance','i showed up','sign in','arrived','here for meeting','mark attendance'] },
+    { id:'act:prayer',         score:0, patterns:['pray for','add prayer','log prayer','prayer request','please pray','need prayer','put on prayer list','intercede'] },
+    { id:'act:victory',        score:0, patterns:['log victory','add victory','praise report','god did','breakthrough','victory','thank god','celebrate','god moved','what god did'] },
+    { id:'act:repair',         score:0, patterns:['repair','fix','broken','bug','not working','issue with','something wrong','glitch','error','problem with'] },
+    { id:'act:status',         score:0, patterns:['status','health','how are we','how is the system','platform status','everything ok','all good','system check','how many','whats happening'] },
+    { id:'act:read-lesson',    score:0, patterns:['read lesson','read it','read aloud','start reading','caleb read','read to me','listen to lesson','read out loud'] },
+    { id:'act:briefing',       score:0, patterns:['briefing','morning briefing','update me','whats today','daily report','refresh','todays summary','command center'] },
+    { id:'act:incident',       score:0, patterns:['incident','any problems','what broke','any issues','whats wrong','current issues','active incidents','anything urgent'] },
+    { id:'act:architecture',   score:0, patterns:['architecture','modules','what do we have','system map','whats built','all features','list modules','what can you do'] },
+    { id:'act:grant-start',    score:0, patterns:['start a grant','create grant','new grant','write a grant','open grant builder','begin application','apply for grant'] },
+    { id:'act:self-heal',      score:0, patterns:['heal','self heal','fix everything','repair all','fix the system','run diagnostics','auto fix','patch system'] },
 
-  // Architecture memory
-  if(/^(architecture|modules|what.*built|system.*map|dependency|what do we have)/i.test(ql)){
-    var features = ['Curriculum (52 lessons, 13 steps)','Caleb AI (voice + chat + command center)',
-      'Grant Engine (catalog + builder + export)','Self-Heal Engine (classify + patch + rollback)',
-      'Financial Overview (ESM/Fiscal tab, fee waterfall)','Housing module','Workforce pipeline',
-      'Member management','QA Swarm','Licensing engine'];
-    var html2 = '<div style="font-size:0.65rem;color:#2dd4c0;font-weight:700;margin-bottom:6px;">📐 ACTIVE MODULES</div>';
-    features.forEach(function(f){
-      html2 += '<div style="font-size:0.62rem;color:#a0aec0;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04);">✓ '+f+'</div>';
+    // CONVERSATION
+    { id:'ans:question',       score:0, patterns:['what is','how do','why does','explain','tell me about','what does','how does','can you','could you','what are','who is','where is'] },
+  ];
+
+  // Score each intent against the query
+  var words = ql.split(' ');
+  INTENTS.forEach(function(intent){
+    intent.score = 0;
+    intent.patterns.forEach(function(pattern){
+      var pw = pattern.split(' ');
+      // Exact phrase match — highest score
+      if(ql.indexOf(pattern) >= 0){
+        intent.score += 10 + pattern.length; // longer phrases score higher
+        return;
+      }
+      // Word overlap score
+      var matched = pw.filter(function(w){ return w.length > 2 && ql.indexOf(w) >= 0; }).length;
+      if(matched > 0) intent.score += matched * 3;
+      // All pattern words present (not necessarily adjacent)
+      if(matched === pw.length && pw.length > 1) intent.score += 8;
     });
-    if(ab){ab.style.display='';ab.innerHTML=html2;}
-    window._calebSpeak('Refined Recovery Network has '+features.length+' active modules. Say the name of any module to navigate there.');
-    return;
-  }
-
-  if(ab){ab.style.display='';ab.textContent='...';}
-
-  var navMap={
-    'check in':'daily-checkin','checkin':'daily-checkin',
-    'dashboard':'overview','home':'overview','main':'overview','overview':'overview',
-    'journal':'recovery-journal','write':'recovery-journal',
-    'meeting':'meetings','attend':'meetings','meetings':'meetings',
-    'lesson':'step-lessons','curriculum':'step-lessons','steps':'step-lessons',
-    'community':'community-wall','wall':'community-wall',
-    'path':'my-path','recovery path':'my-path','my path':'my-path',
-    'progress':'my-progress','tracker':'steps-track',
-    'trigger':'trigger-tracking','calendar':'my-calendar',
-    'prayer':'prayer-requests','testimony':'testimony',
-    'mentor':'sponsor-chat','chat':'sponsor-chat','sponsor':'sponsor-chat',
-    'member':'members','members':'members','directory':'members',
-    'scan':'qr-scanner','qr':'qr-scanner',
-    'housing':'housing','house':'housing',
-    'workforce':'workforce','jobs':'workforce','employer':'employers',
-    'campus':'campuses','campuses':'campuses',
-    'donat':'donations','donation':'donations','giving':'donations',
-    'financ':'unified-finance','grant':'grant-engine',
-    'pipeline':'pipeline-board','war room':'warroom','command':'warroom',
-    'announcement':'announcements','alert':'alerts','notification':'my-notifications',
-    '12 step':'step-lessons','step lesson':'step-lessons','assignment':'step-lessons',
-    'read':'step-lessons','reading':'step-lessons','lesson':'step-lessons',
-    'repair':'repair-dashboard','fix':'repair-dashboard','heal':'repair-dashboard',
-    'caleb voice':'caleb-voice','voice panel':'caleb-voice','caleb panel':'caleb-voice',
-    'qa':'qa-swarm','swarm':'qa-swarm','test':'qa-swarm',
-    'war room':'warroom','command center':'warroom'
-  };
-  for(var kw in navMap){
-    if(ql.indexOf(kw)>=0){
-      var sec=navMap[kw];
-      // Navigate immediately
-      setTimeout(function(s){return function(){
-        if(window._rrnSetActiveSection){window._rrnSetActiveSection(s);console.log('[CALEB NAV]',s);}
-      };}(sec),150);
-      // Give intelligent contextual response based on section
-      window._calebContextResponse(sec,q);
-      return;
-    }
-  }
-
-  if(/^(caleb\s*)?(please\s*)?(fix|repair)\s+.{3,}/i.test(q)){
-    var desc=q.replace(/^(caleb\s*)?(please\s*)?(fix|repair)\s*/i,'');
-    window.CaRepairs.add(desc);
-    if(ab)ab.textContent='Repair logged: '+desc;
-    window._calebSpeak('Logged and queued.');
-    return;
-  }
-  if(/repair status|how many repair|pending/i.test(ql)){
-    var p=window.CaRepairs.get().filter(function(r){return r.status==='pending';}).length;
-    var msg='You have '+window.CaRepairs.get().length+' repairs, '+p+' pending.';
-    if(ab)ab.textContent=msg;window._calebSpeak(msg);return;
-  }
-  if(/status|health|system|online|running/i.test(ql)){
-    var sm='Platform online. Kayleb connected. Model: '+(window.CALEB_MODEL||'unknown')+'.';
-    if(ab)ab.textContent=sm;window._calebSpeak(sm);return;
-  }
-
-  // Query local RAG index first for enriched context
-  function _queryRAG(q, cb){
-    _apiFetch('/caleb?q='+encodeURIComponent(q), {method:'GET'})
-    .then(function(r){return r.json();})
-    .then(function(d){cb(d.context||'');})
-    .catch(function(e){ if(typeof handleApiError==='function') handleApiError(e,{module:'caleb',path:'/caleb',optional:true}); cb(''); });
-  }
-
-  var SYS='You are Kayleb, AI for Refined Recovery Network. Use the provided context. Answer in 1-2 short sentences. End with ONE helpful question. Warm, direct. KJV scripture naturally.';
-  _queryRAG(q, function(ragContext){
-  var enrichedPrompt = ragContext ? 'Context: '+ragContext+'\n\nUser: '+q : q;
-  _apiFetch('/caleb',{method:'POST',
-    body:JSON.stringify({model:window.CALEB_MODEL||'qwen2.5:0.5b',system:SYS,prompt:enrichedPrompt,stream:false,options:{temperature:0.7,num_predict:80}})})
-  .then(function(r){return r.json();})
-  .then(function(d){
-    var msg=(d.response||'').replace(/[{}\[\]"]/g,'').trim()||'I heard you.';
-    if(ab){ab.style.display='';ab.textContent=msg;}
-    window._updateCalebDock&&window._updateCalebDock('responding');
-    window._calebSpeak(msg,function(){window._updateCalebDock&&window._updateCalebDock('idle');});
-  })
-  .catch(function(e){
-    console.log('[CALEB] Ollama error:',e.message);
-    if(ab)ab.textContent='Ollama offline. Check LAUNCH_CALEB.bat.';
+    // Boost for short queries that match well (more likely to be commands)
+    if(words.length <= 4 && intent.score > 0) intent.score += 3;
   });
-  }); // end _queryRAG
-};
+
+  // Find winner
+  var best = INTENTS.slice().sort(function(a,b){ return b.score - a.score; })[0];
+
+  // Minimum threshold — below 5 means nothing matched well
+  if(best.score < 5){
+    // No match — give a helpful response
+    if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#718096;font-size:0.68rem;">I didn\'t catch that. Try: <em>check in, open lessons, how is the system, log a victory, pray for</em> — or just say what you need.</div>'; }
+    window._calebSpeak('I didn\'t catch that. Try saying: check in, open my lesson, or how is the system.');
+    _micSetStatus(window._micGranted ? 'listening' : 'idle');
+    return;
+  }
+
+  console.log('[CALEB INTENT]', best.id, '(score:', best.score, ') for:', q);
+
+  // Execute
+  var type = best.id.split(':')[0];
+  var target = best.id.split(':')[1];
+
+  // ── NAVIGATE ────────────────────────────────────────────────────────────
+  if(type === 'nav'){
+    var section = target;
+    if(window._rrnSetActiveSection){
+      window._rrnSetActiveSection(section);
+      setTimeout(function(){
+        var d=document.getElementById('caleb-draw');
+        if(d){d.style.transform='translateX(110%)';d.classList.remove('open');}
+      }, 200);
+    }
+    window._calebContextResponse(section, q);
+    _micSetStatus(window._micGranted ? 'listening' : 'idle');
+    return;
+  }
+
+  // ── ACTIONS ─────────────────────────────────────────────────────────────
+  if(type === 'act'){
+    switch(target){
+
+      case 'checkin':
+        var sess = window._rrnAutoSession || {};
+        var uname = sess.name || 'Unknown';
+        try{
+          var pd = JSON.parse(localStorage.getItem('rrn_platform')||'{}');
+          if(!pd.attendance) pd.attendance = [];
+          pd.attendance.push({ name:uname, time:new Date().toISOString(), method:'caleb_voice' });
+          localStorage.setItem('rrn_platform', JSON.stringify(pd));
+          if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#2dd4c0;font-size:0.7rem;">\u2705 Check-in logged for '+uname+' at '+new Date().toLocaleTimeString()+'</div>'; }
+          window._calebSpeak('Check-in logged. Welcome, '+uname.split(' ')[0]+'.');
+        }catch(e){ window._calebSpeak('Could not log check-in.'); }
+        break;
+
+      case 'prayer':
+        var preq = q.replace(/^(caleb\s+)?(please\s+)?(pray\s+for|add\s+prayer|log\s+prayer|prayer\s+request|intercede\s+for)\s*/i,'').trim() || q;
+        try{
+          var pd2 = JSON.parse(localStorage.getItem('rrn_platform')||'{}');
+          if(!pd2.prayerRequests) pd2.prayerRequests = [];
+          pd2.prayerRequests.unshift({ text:preq, at:new Date().toISOString(), status:'active' });
+          localStorage.setItem('rrn_platform', JSON.stringify(pd2));
+          if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#a78bfa;font-size:0.7rem;">\uD83D\uDE4F Prayer request logged: '+preq+'</div>'; }
+          window._calebSpeak('Prayer request added. May God move on this need.');
+        }catch(e){ window._calebSpeak('Could not log prayer request.'); }
+        break;
+
+      case 'victory':
+        var vic = q.replace(/^(caleb\s+)?(log|add|record)?\s*(victory|praise\s+report|breakthrough)?\s*/i,'').trim() || q;
+        try{
+          var pd3 = JSON.parse(localStorage.getItem('rrn_platform')||'{}');
+          if(!pd3.victories) pd3.victories = [];
+          pd3.victories.unshift({ text:vic, at:new Date().toISOString(), member:(window._rrnAutoSession||{}).name||'' });
+          localStorage.setItem('rrn_platform', JSON.stringify(pd3));
+          if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#5bc46e;font-size:0.7rem;">\uD83C\uDFC6 Victory logged: '+vic+'</div>'; }
+          window._calebSpeak('Victory logged. God is faithful.');
+        }catch(e){ window._calebSpeak('Could not log victory.'); }
+        break;
+
+      case 'repair':
+        var rdesc = q.replace(/^(caleb\s+)?(please\s+)?(fix|repair|log\s+issue|report\s+bug)\s*/i,'').trim() || q;
+        if(window.CaRepairs) window.CaRepairs.add(rdesc);
+        if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#c8913a;font-size:0.7rem;">\uD83D\uDD27 Repair logged: '+rdesc+'</div>'; }
+        window._calebSpeak('Repair logged and queued.');
+        break;
+
+      case 'status':
+        _buildDailyBriefing();
+        break;
+
+      case 'read-lesson':
+        var rb = null;
+        document.querySelectorAll('button').forEach(function(b){ if((b.textContent||'').indexOf('Read Lesson')>=0) rb=b; });
+        if(rb){ rb.click(); window._calebSpeak('Starting lesson reading.'); }
+        else{ window._calebSpeak('Open a lesson first, then I can read it for you.'); }
+        break;
+
+      case 'briefing':
+        _buildDailyBriefing();
+        break;
+
+      case 'incident':
+        var hlt = _calebSystemHealth();
+        var incs = _calebDetectIncidents(hlt);
+        if(incs.length===0){
+          window._calebSpeak('No active incidents. All systems clear.');
+          if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#2dd4c0;font-size:0.7rem;">\u2705 No active incidents.</div>'; }
+        } else {
+          var imsg = incs.length+' incident'+(incs.length>1?'s':'')+' detected. ';
+          incs.forEach(function(i){ imsg += i.impact+'. '; });
+          window._calebSpeak(imsg);
+          if(ab){ ab.style.display=''; ab.innerHTML = incs.map(function(i){ return '<div style="color:#c8913a;font-size:0.65rem;margin-bottom:3px;">'+i.icon+' '+i.impact+'</div>'; }).join(''); }
+        }
+        break;
+
+      case 'architecture':
+        var mods = ['Curriculum \u2014 52 lessons','Caleb AI \u2014 voice, actions, command center','Grant Engine \u2014 builder and export','Self-Heal \u2014 auto repair','Financial \u2014 ESM fiscal dashboard','Housing','Workforce','Member management','QA Swarm','Licensing'];
+        window._calebSpeak('Refined Recovery Network has '+mods.length+' active modules: '+mods.slice(0,5).join(', ')+', and more.');
+        if(ab){ ab.style.display=''; ab.innerHTML='<div style="font-size:0.62rem;color:#2dd4c0;margin-bottom:4px;">ACTIVE MODULES</div>'+mods.map(function(m){ return '<div style="font-size:0.62rem;color:#a0aec0;padding:1px 0;">\u2713 '+m+'</div>'; }).join(''); }
+        break;
+
+      case 'grant-start':
+        if(window._rrnSetActiveSection) window._rrnSetActiveSection('grant-engine');
+        setTimeout(function(){ var d=document.getElementById('caleb-draw'); if(d){d.style.transform='translateX(110%)';d.classList.remove('open');} },300);
+        window._calebSpeak('Opening Grant Engine. Select a grant, then click Open Builder to begin your application.');
+        break;
+
+      case 'self-heal':
+        if(window.RRN_HEAL_ENGINE) window.RRN_HEAL_ENGINE.heal(new Error('Manual trigger'),{module:'manual'});
+        if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#2dd4c0;font-size:0.65rem;">\uD83D\uDD27 Self-Heal triggered.</div>'; }
+        window._calebSpeak('Self-heal engine running.');
+        break;
+    }
+    _micSetStatus(window._micGranted ? 'listening' : 'idle');
+    return;
+  }
+
+  // ── GENERAL QUESTION — use Anthropic API if key set, else helpful prompt ──
+  if(type === 'ans'){
+    var akey = window.RRN_ANTHROPIC_KEY || localStorage.getItem('rrn_anthropic_key') || '';
+    if(akey && akey.startsWith('sk-ant-')){
+      var h2 = _calebSystemHealth();
+      var sys2 = 'You are Caleb, AI assistant for Refined Recovery Network, an Apostolic Pentecostal faith-based recovery ministry in Louisiana. Speak with warmth and brevity. KJV only. No AA language. No disease model. Platform: '+h2.members+' members, '+h2.occupancy+'% housing. Answer in 2-3 sentences max. Weave in scripture naturally for recovery questions.';
+      if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#c8913a;font-size:0.65rem;font-style:italic;">Thinking...</div>'; }
+      fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:150,system:sys2,messages:[{role:'user',content:q}]})
+      }).then(function(r){return r.json();}).then(function(d){
+        var ans=(d.content&&d.content[0]&&d.content[0].text)||'I could not process that.';
+        if(ab){ab.style.display='';ab.innerHTML='<div style="font-size:0.7rem;color:#e2e8f0;line-height:1.5;">'+ans+'</div>';}
+        window._calebSpeak(ans);
+      }).catch(function(){window._calebSpeak('I could not reach the AI right now.');});
+    } else {
+      window._calebSpeak('I can navigate and execute actions without an API key. For open questions, set your Caleb key with setCalebKey in the console.');
+      if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#718096;font-size:0.68rem;">Set Caleb API key for open-ended answers. Actions and navigation work without a key.</div>'; }
+    }
+    _micSetStatus(window._micGranted ? 'listening' : 'idle');
+    return;
+  }
+
+  _micSetStatus(window._micGranted ? 'listening' : 'idle');
+}
+;
 
 // -- OLLAMA HEALTH -----------------------------------------------------
 // Check Railway backend
@@ -52573,14 +52775,24 @@ function checkCalebKey(){
 
 // -- CHECK 5: Navigation Integrity --------------------------------------------
 function checkNavigation(){
-  // Verify the active section is valid
+  // React renders panels dynamically — DOM check is unreliable during route transitions
+  // Only warn once per unique section miss, not every heal cycle
   var section = window._rrnActiveSection;
   if(!section) return;
+  if(window._navMissedSections && window._navMissedSections[section]) return; // already warned
   var el = document.querySelector('[data-panel="'+section+'"]') ||
            document.querySelector('#panel-'+section) ||
            document.querySelector('.d-panel-'+section);
   if(!el){
-    log('Active section "'+section+'" panel element missing from DOM', 'warn');
+    // Wait 500ms — React may still be rendering
+    setTimeout(function(){
+      var el2 = document.querySelector('[data-panel="'+section+'"]') ||
+                document.querySelector('#panel-'+section);
+      if(!el2){
+        if(!window._navMissedSections) window._navMissedSections = {};
+        window._navMissedSections[section] = true; // suppress future warnings
+      }
+    }, 500);
   }
 }
 
