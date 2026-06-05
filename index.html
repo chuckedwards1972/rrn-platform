@@ -1,11 +1,16 @@
 <!DOCTYPE html>
 <!--
-  REFINED_18_05_HEALED_v58.html
+  REFINED_18_05_HEALED_v59.html
   ════════════════════════════════════════════════════════════════
-  VERSION:  v58 | 2026.6.8 | 2026-06-05
-  BASELINE: v57 | 2026.6.7 | Last confirmed clean build
-  ROLLBACK: Restore REFINED_18_05_HEALED_v57.html
+  VERSION:  v59 | 2026.6.9 | 2026-06-05
+  BASELINE: v58 | 2026.6.8 | Last confirmed clean build
+  ROLLBACK: Restore REFINED_18_05_HEALED_v58.html
   
+  CHANGES IN v59 (3 critical fixes from production console):
+  1. CALEB drawer L7 gate — employer sees ONLY hiring nav, zero recovery content [42 CFR]
+  2. Mic restart loop — drawer-open guard prevents repeated session starts
+  3. PWA-side route aliases — /members→/users, /admin/campuses→/campuses in _apiFetch
+
   CHANGES IN v58 (employer CALEB-E + virtual interviews):
   1. CALEB-E employer mode — L7 gets AI hiring assistant, not recovery companion
   2. L7 intent gate — 42 CFR Part 2 blocks recovery queries from employers
@@ -61,7 +66,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="build-version" content="2026.6.8">
+  <meta name="build-version" content="2026.6.9">
   <!-- RRN PWA: Critical meta tags -->
   <meta name="theme-color" content="#c8913a">
   <meta name="mobile-web-app-capable" content="yes">
@@ -1633,7 +1638,7 @@ const TOKEN_KEY = 'rrn_token';
 
 // -- PWA Cache Version Check — clears stale localStorage on version change ------
 (function() {
-  var PLATFORM_VERSION = '2026.6.8';
+  var PLATFORM_VERSION = '2026.6.9';
   try {
     var storedVersion = localStorage.getItem('rrn_platform_version');
     if (storedVersion && storedVersion !== PLATFORM_VERSION) {
@@ -47801,7 +47806,7 @@ function App() {
 (function(){
   if(!('serviceWorker' in navigator)) return;
   var swCode = [
-    'const CACHE = "rrn-v58";',
+    'const CACHE = "rrn-v59";',
     'const ASSETS = ["/rrn-platform/", "/rrn-platform/index.html"];',
     'self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).catch(()=>{})));',
     'self.addEventListener("fetch", e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)).catch(() => caches.match("/rrn-platform/"))));'
@@ -47850,7 +47855,34 @@ window._renderRepairLog();}},
       )
     ),
     React.createElement("div",{style:{flex:1,overflowY:'auto',padding:'8px 12px'}},
-      React.createElement("div",{style:{fontSize:'0.52rem',fontWeight:900,color:'#4a5568',textTransform:'uppercase',letterSpacing:'0.12em',fontFamily:'monospace',marginBottom:'6px',marginTop:'4px'}},"▸ Navigate"),
+      // 42 CFR Part 2 — L7 employer sees ONLY employer navigation
+      (function(){
+        var _elvl=(window._rrnAutoSession&&window._rrnAutoSession.level!==undefined)?window._rrnAutoSession.level:(window._rrnSession&&window._rrnSession.level!==undefined)?window._rrnSession.level:5;
+        if(_elvl===7){
+          return React.createElement("div",null,
+            React.createElement("div",{style:{fontSize:'0.52rem',fontWeight:900,color:'#c8913a',textTransform:'uppercase',letterSpacing:'0.12em',fontFamily:'monospace',marginBottom:'6px',marginTop:'4px'}},"▸ Employer Portal"),
+            [["employer-portal","📋 Candidate Pipeline","View hiring pipeline."],["employer-positions","💼 Open Positions","Manage job openings."],["employer-hired","✅ Hired & Retained","Track placements."],["employer-profile","🏢 Company Profile","Update your profile."]].map(function(item,ei){
+              return React.createElement("div",{key:ei,onClick:function(e){e.preventDefault();e.stopPropagation();if(window._rrnSetActiveSection)window._rrnSetActiveSection(item[0]);setTimeout(function(){var d=document.getElementById('caleb-draw');if(d){d.style.transform='translateX(110%)';d.classList.remove('open');}},200);},style:{display:'flex',alignItems:'center',gap:'8px',padding:'7px 8px',borderRadius:'7px',background:'rgba(200,145,58,0.08)',border:'1px solid rgba(200,145,58,0.2)',marginBottom:'3px',cursor:'pointer'}},
+                React.createElement("div",null,
+                  React.createElement("div",{style:{fontSize:'0.72rem',fontWeight:700,color:'#e2e8f0'}},item[1]),
+                  React.createElement("div",{style:{fontSize:'0.58rem',color:'#4a5568'}},item[2])
+                )
+              );
+            }),
+            React.createElement("div",{style:{marginTop:'8px',padding:'8px',borderRadius:'7px',background:'rgba(200,145,58,0.06)',border:'1px solid rgba(200,145,58,0.15)'}},
+              React.createElement("div",{style:{fontSize:'0.65rem',fontWeight:700,color:'#c8913a',marginBottom:'4px'}},"🤖 CALEB-E · Hiring Assistant"),
+              React.createElement("div",{style:{fontSize:'0.6rem',color:'#718096',lineHeight:1.4}},"Ask about candidates, interviews, or postings only."),
+              React.createElement("div",{style:{display:'flex',gap:'4px',marginTop:'5px',flexWrap:'wrap'}},
+                ["Interview-ready candidates","Start virtual interview","Candidate certifications"].map(function(p){
+                  return React.createElement("button",{key:p,onClick:function(){var i=document.getElementById('caleb-text-input');if(i){i.value=p;if(window._cSend)window._cSend();}},style:{fontSize:'0.6rem',padding:'3px 6px',borderRadius:4,background:'rgba(200,145,58,0.1)',border:'1px solid rgba(200,145,58,0.25)',color:'#c8913a',cursor:'pointer'}},p);
+                })
+              )
+            )
+          );
+        }
+        // Non-employer: standard nav
+        return React.createElement("div",null,
+          React.createElement("div",{style:{fontSize:'0.52rem',fontWeight:900,color:'#4a5568',textTransform:'uppercase',letterSpacing:'0.12em',fontFamily:'monospace',marginBottom:'6px',marginTop:'4px'}},"▸ Navigate"),
       [["overview", "Dashboard", "Your daily overview.", 5], ["my-path", "My Recovery Path", "Track your progress.", 5], ["recovery-journal", "Write in Journal", "Private reflection.", 5], ["guest-meetings", "Log Meeting", "Attend Refined Place.", 5], ["step-lessons", "Do Your Lesson", "One lesson today.", 5], ["community-wall", "Connect", "Community wall.", 5], ["my-lessons", "My Curriculum", "All lessons.", 5], ["my-progress", "My Progress", "View milestones.", 5], ["victories", "My Victories", "Victory log.", 5], ["recovery-plan", "Recovery Plan", "My plan.", 5], ["meetings", "Meetings", "View sessions.", 4], ["members", "Members", "Directory.", 3], ["attendance", "Mark Attendance", "Check in.", 3], ["qr-scanner", "QR Check-In", "Scan to check in.", 3], ["video-sessions", "Live Meeting", "Join live.", 3], ["session-tools", "Session Tools", "Host controls.", 2], ["alerts", "Alerts", "Platform alerts.", 2], ["guest-signup", "Guest Signup", "Onboard a guest.", 2], ["ai-resume-builder", "AI Resume", "Build resume.", 3]].map(function(item,i){
         var lvl=(window._rrnAutoSession&&window._rrnAutoSession.level!==undefined)?window._rrnAutoSession.level:(window._rrnSession&&window._rrnSession.level!==undefined)?window._rrnSession.level:5;
         var locked=(lvl!==0&&lvl>item[3]);
@@ -47882,7 +47914,9 @@ window._renderRepairLog();}},
             React.createElement("div",{style:{fontSize:'0.58rem',color:'#4a5568'}},item[2])
           )
         );
-      }),
+      })
+        ); // close non-employer nav div
+      })(), // close IIFE
       React.createElement("div",{style:{marginTop:'10px',borderTop:'1px solid rgba(45,212,192,0.1)',paddingTop:'8px'}},
         React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px'}},
           React.createElement("span",{style:{fontSize:'0.52rem',fontWeight:900,color:'#2dd4c0',textTransform:'uppercase',letterSpacing:'0.1em',fontFamily:'monospace'}},"⚡ COMMAND CENTER"),
@@ -54639,8 +54673,9 @@ function _buildMicInstance(){
     window._micActive = false;
     if(window._micSuspend){ _micSetStatus('speaking'); return; }
     if(window._micPushToTalk){ _micSetStatus('idle'); return; }
-    // HTTPS continuous — auto-restart same instance
-    if(window._micGranted && window.location.protocol === 'https:' && !window._micSuspend){
+    // HTTPS continuous — only restart when CALEB drawer is open (prevents mic loop)
+    var _drawerOpen = (function(){ var d=document.getElementById('caleb-draw'); return d&&d.classList.contains('open'); })();
+    if(window._micGranted && window.location.protocol === 'https:' && !window._micSuspend && _drawerOpen){
       setTimeout(function(){
         if(window._micGranted && !window._micSuspend){
           window._micActive = true;
@@ -55684,7 +55719,15 @@ window.RRN_TELEMETRY = (function() {
   if(_origFetch) {
     window._apiFetch = function(path, opts) {
       var t0 = performance.now();
-      return _origFetch.call(this, path, opts)
+      // PWA-side route aliases — fixes 404s when Railway alias ordering fails
+      var _p = path || '';
+      if(_p === '/members' || _p.indexOf('/members?') === 0 || _p.indexOf('/members/') === 0)
+        _p = _p.replace('/members', '/users');
+      if(_p.indexOf('/admin/campuses') === 0)
+        _p = _p.replace('/admin/campuses', '/campuses');
+      if(_p.indexOf('/workforce/employers') === 0)
+        _p = _p.replace('/workforce/employers', '/workforce');
+      return _origFetch.call(this, _p, opts)
         .then(function(r){
           RRN_TELEMETRY.record('railway_api', performance.now()-t0, 'success', {path:(path||'').slice(0,40)});
           return r;
