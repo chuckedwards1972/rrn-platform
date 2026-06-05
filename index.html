@@ -1,11 +1,16 @@
 <!DOCTYPE html>
 <!--
-  REFINED_18_05_HEALED_v59.html
+  REFINED_18_05_HEALED_v60.html
   ════════════════════════════════════════════════════════════════
-  VERSION:  v59 | 2026.6.9 | 2026-06-05
+  VERSION:  v60 | 2026.6.10 | 2026-06-05
   BASELINE: v58 | 2026.6.8 | Last confirmed clean build
-  ROLLBACK: Restore REFINED_18_05_HEALED_v58.html
+  ROLLBACK: Restore REFINED_18_05_HEALED_v59.html
   
+  CHANGES IN v60 (CALEB drawer 3 fixes):
+  1. Drawer gate: now uses _rrnActiveSection — fires correctly when L0 views employer portal
+  2. Drawer position: top:56px→92px — no more header overlap
+  3. Employer nav: gold card style with icon boxes, active highlight, full-width CALEB-E prompts
+
   CHANGES IN v59 (3 critical fixes from production console):
   1. CALEB drawer L7 gate — employer sees ONLY hiring nav, zero recovery content [42 CFR]
   2. Mic restart loop — drawer-open guard prevents repeated session starts
@@ -66,7 +71,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="build-version" content="2026.6.9">
+  <meta name="build-version" content="2026.6.10">
   <!-- RRN PWA: Critical meta tags -->
   <meta name="theme-color" content="#c8913a">
   <meta name="mobile-web-app-capable" content="yes">
@@ -1638,7 +1643,7 @@ const TOKEN_KEY = 'rrn_token';
 
 // -- PWA Cache Version Check — clears stale localStorage on version change ------
 (function() {
-  var PLATFORM_VERSION = '2026.6.9';
+  var PLATFORM_VERSION = '2026.6.10';
   try {
     var storedVersion = localStorage.getItem('rrn_platform_version');
     if (storedVersion && storedVersion !== PLATFORM_VERSION) {
@@ -47806,7 +47811,7 @@ function App() {
 (function(){
   if(!('serviceWorker' in navigator)) return;
   var swCode = [
-    'const CACHE = "rrn-v59";',
+    'const CACHE = "rrn-v60";',
     'const ASSETS = ["/rrn-platform/", "/rrn-platform/index.html"];',
     'self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).catch(()=>{})));',
     'self.addEventListener("fetch", e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)).catch(() => caches.match("/rrn-platform/"))));'
@@ -47831,7 +47836,7 @@ window._renderRepairLog();}},
   ),
   session && /*#__PURE__*/React.createElement("div",{
     id:"caleb-draw",
-    style:{position:'fixed',top:'56px',right:0,width:'320px',height:'calc(100vh - 56px)',
+    style:{position:'fixed',top:'92px',right:0,width:'340px',height:'calc(100vh - 92px)',
       background:'#0a0f1e',borderLeft:'2px solid #2dd4c0',zIndex:2147483646,
       transform:'translateX(110%)',transition:'transform 0.3s ease',
       display:'flex',flexDirection:'column',overflow:'hidden',fontFamily:'Arial'}},
@@ -47858,23 +47863,61 @@ window._renderRepairLog();}},
       // 42 CFR Part 2 — L7 employer sees ONLY employer navigation
       (function(){
         var _elvl=(window._rrnAutoSession&&window._rrnAutoSession.level!==undefined)?window._rrnAutoSession.level:(window._rrnSession&&window._rrnSession.level!==undefined)?window._rrnSession.level:5;
-        if(_elvl===7){
+        var _empSections = ['employer-portal','employer-positions','employer-hired','employer-profile'];
+        var _inEmpSection = _empSections.indexOf(window._rrnActiveSection||'') !== -1;
+        // Gate fires when: actual L7 session OR any role currently viewing employer panels
+        if(_elvl===7 || _inEmpSection){
           return React.createElement("div",null,
             React.createElement("div",{style:{fontSize:'0.52rem',fontWeight:900,color:'#c8913a',textTransform:'uppercase',letterSpacing:'0.12em',fontFamily:'monospace',marginBottom:'6px',marginTop:'4px'}},"▸ Employer Portal"),
-            [["employer-portal","📋 Candidate Pipeline","View hiring pipeline."],["employer-positions","💼 Open Positions","Manage job openings."],["employer-hired","✅ Hired & Retained","Track placements."],["employer-profile","🏢 Company Profile","Update your profile."]].map(function(item,ei){
-              return React.createElement("div",{key:ei,onClick:function(e){e.preventDefault();e.stopPropagation();if(window._rrnSetActiveSection)window._rrnSetActiveSection(item[0]);setTimeout(function(){var d=document.getElementById('caleb-draw');if(d){d.style.transform='translateX(110%)';d.classList.remove('open');}},200);},style:{display:'flex',alignItems:'center',gap:'8px',padding:'7px 8px',borderRadius:'7px',background:'rgba(200,145,58,0.08)',border:'1px solid rgba(200,145,58,0.2)',marginBottom:'3px',cursor:'pointer'}},
+            [
+              ["employer-portal",  "📋", "Candidate Pipeline", "View & filter hiring pipeline"],
+              ["employer-positions","💼", "Open Positions",     "Manage your job openings"],
+              ["employer-hired",   "✅", "Hired & Retained",   "Track your placements"],
+              ["employer-profile", "🏢", "Company Profile",    "Setup & update your profile"],
+            ].map(function(item,ei){
+              var _isActive = (window._rrnActiveSection === item[0]);
+              return React.createElement("div",{key:ei,
+                onClick:function(e){
+                  e.preventDefault();e.stopPropagation();
+                  if(window._rrnSetActiveSection) window._rrnSetActiveSection(item[0]);
+                  setTimeout(function(){var d=document.getElementById('caleb-draw');if(d){d.style.transform='translateX(110%)';d.classList.remove('open');}},200);
+                },
+                style:{
+                  display:'flex',alignItems:'center',gap:'10px',padding:'10px 12px',
+                  borderRadius:'10px',marginBottom:'5px',cursor:'pointer',
+                  background: _isActive ? 'rgba(200,145,58,0.18)' : 'rgba(200,145,58,0.07)',
+                  border: '1px solid ' + (_isActive ? 'rgba(200,145,58,0.5)' : 'rgba(200,145,58,0.18)'),
+                  boxShadow: _isActive ? '0 2px 8px rgba(200,145,58,0.15)' : 'none',
+                  transition:'all 0.15s ease'
+                }},
+                React.createElement("div",{style:{
+                  width:'34px',height:'34px',borderRadius:'8px',flexShrink:0,
+                  background: _isActive ? 'rgba(200,145,58,0.3)' : 'rgba(200,145,58,0.12)',
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem'
+                }}, item[1]),
                 React.createElement("div",null,
-                  React.createElement("div",{style:{fontSize:'0.72rem',fontWeight:700,color:'#e2e8f0'}},item[1]),
-                  React.createElement("div",{style:{fontSize:'0.58rem',color:'#4a5568'}},item[2])
+                  React.createElement("div",{style:{fontSize:'0.75rem',fontWeight:700,color: _isActive ? '#f0c060' : '#e2e8f0',lineHeight:1.2}}, item[2]),
+                  React.createElement("div",{style:{fontSize:'0.6rem',color:'#718096',marginTop:'2px'}}, item[3])
                 )
               );
             }),
             React.createElement("div",{style:{marginTop:'8px',padding:'8px',borderRadius:'7px',background:'rgba(200,145,58,0.06)',border:'1px solid rgba(200,145,58,0.15)'}},
               React.createElement("div",{style:{fontSize:'0.65rem',fontWeight:700,color:'#c8913a',marginBottom:'4px'}},"🤖 CALEB-E · Hiring Assistant"),
               React.createElement("div",{style:{fontSize:'0.6rem',color:'#718096',lineHeight:1.4}},"Ask about candidates, interviews, or postings only."),
-              React.createElement("div",{style:{display:'flex',gap:'4px',marginTop:'5px',flexWrap:'wrap'}},
-                ["Interview-ready candidates","Start virtual interview","Candidate certifications"].map(function(p){
-                  return React.createElement("button",{key:p,onClick:function(){var i=document.getElementById('caleb-text-input');if(i){i.value=p;if(window._cSend)window._cSend();}},style:{fontSize:'0.6rem',padding:'3px 6px',borderRadius:4,background:'rgba(200,145,58,0.1)',border:'1px solid rgba(200,145,58,0.25)',color:'#c8913a',cursor:'pointer'}},p);
+              React.createElement("div",{style:{display:'flex',flexDirection:'column',gap:'5px',marginTop:'8px'}},
+                [
+                  {icon:'⭐',label:'Interview-ready candidates',prompt:'Show me interview-ready candidates'},
+                  {icon:'🎥',label:'Start virtual interview',prompt:'How do I start a virtual interview?'},
+                  {icon:'📜',label:'Candidate certifications',prompt:'What certifications do your candidates have?'},
+                ].map(function(p){
+                  return React.createElement("button",{key:p.label,
+                    onClick:function(){var i=document.getElementById('caleb-text-input');if(i){i.value=p.prompt;if(window._cSend)window._cSend();}},
+                    style:{display:'flex',alignItems:'center',gap:'8px',padding:'7px 10px',borderRadius:7,
+                      background:'rgba(200,145,58,0.08)',border:'1px solid rgba(200,145,58,0.2)',
+                      color:'#c8913a',cursor:'pointer',textAlign:'left',width:'100%'}},
+                    React.createElement("span",{style:{fontSize:'0.85rem'}},p.icon),
+                    React.createElement("span",{style:{fontSize:'0.64rem',fontWeight:600}},p.label)
+                  );
                 })
               )
             )
