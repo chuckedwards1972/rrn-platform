@@ -1,11 +1,18 @@
 <!DOCTYPE html>
 <!--
-  REFINED_18_05_HEALED_v55.html
+  REFINED_18_05_HEALED_v58.html
   ════════════════════════════════════════════════════════════════
-  VERSION:  v57 | 2026.6.7 | 2026-06-05
-  BASELINE: v56 | 2026.6.6 | Last confirmed clean build
-  ROLLBACK: Restore REFINED_18_05_HEALED_v54.html
+  VERSION:  v58 | 2026.6.8 | 2026-06-05
+  BASELINE: v57 | 2026.6.7 | Last confirmed clean build
+  ROLLBACK: Restore REFINED_18_05_HEALED_v57.html
   
+  CHANGES IN v58 (employer CALEB-E + virtual interviews):
+  1. CALEB-E employer mode — L7 gets AI hiring assistant, not recovery companion
+  2. L7 intent gate — 42 CFR Part 2 blocks recovery queries from employers
+  3. CALEB-E sidebar — floating 🤖 button in employer portal with quick actions
+  4. Virtual interview launcher — Jitsi iframe overlay from candidate detail view
+  5. workforce.employer_viewed event fired on interview launch (event bus)
+
   CHANGES IN v57 (3 Apple-grade architectural upgrades):
   1. window.RRN_EVENTS — typed event bus, 6 namespaces, 200-event ledger [ADR-0011]
   2. window.RRN_VALIDATE — runtime schema validation at every boundary [ADR-0012]
@@ -54,7 +61,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="build-version" content="2026.6.7">
+  <meta name="build-version" content="2026.6.8">
   <!-- RRN PWA: Critical meta tags -->
   <meta name="theme-color" content="#c8913a">
   <meta name="mobile-web-app-capable" content="yes">
@@ -1626,7 +1633,7 @@ const TOKEN_KEY = 'rrn_token';
 
 // -- PWA Cache Version Check — clears stale localStorage on version change ------
 (function() {
-  var PLATFORM_VERSION = '2026.6.1';
+  var PLATFORM_VERSION = '2026.6.8';
   try {
     var storedVersion = localStorage.getItem('rrn_platform_version');
     if (storedVersion && storedVersion !== PLATFORM_VERSION) {
@@ -46183,6 +46190,50 @@ function EmployerDashboard({ platform, session, toast, setActive }) {
   var _readAlerts = React.useState([]);
   var readAlerts = _readAlerts[0];
 
+  // Virtual interview + CALEB-E sidebar state
+  var _vInterview = React.useState(null); var activeInterview = _vInterview[0], setActiveInterview = _vInterview[1];
+  var _calebOpen = React.useState(false); var calebEOpen = _calebOpen[0], setCalebEOpen = _calebOpen[1];
+  var _calebMsg = React.useState(''); var calebEMsg = _calebMsg[0], setCalebEMsg = _calebMsg[1];
+
+  // Launch virtual interview via Jitsi
+  var launchInterview = function(candidate) {
+    var roomId = 'rrn-interview-' + empId.slice(0,8) + '-' + candidate.id + '-' + Date.now();
+    setActiveInterview({ candidate: candidate, roomId: roomId, startTime: new Date().toLocaleTimeString() });
+    if(window.RRN_EVENTS) RRN_EVENTS.emit('workforce.employer_viewed', { candidateId: candidate.id, action: 'interview_launched' });
+    // Mark interview as started in localStorage
+    var updated = Object.assign({}, interviewReqs, { [candidate.id]: Object.assign({}, interviewReqs[candidate.id]||{}, { status:'in-progress', roomId:roomId, started:new Date().toISOString() }) });
+    setInterviewReqs(updated);
+    try { localStorage.setItem('rrn_interview_reqs_all', JSON.stringify(updated)); } catch(e){}
+  };
+
+  // Send message to CALEB-E
+  var sendCalebE = function() {
+    if(!calebEMsg.trim()) return;
+    var inp = document.getElementById('caleb-e-input');
+    if(inp) inp.value = '';
+    var q = calebEMsg.trim();
+    setCalebEMsg('');
+    var akey = window.RRN_ANTHROPIC_KEY || localStorage.getItem('rrn_anthropic_key') || '';
+    var out = document.getElementById('caleb-e-output');
+    if(out) out.textContent = 'Thinking...';
+    if(!akey || !akey.startsWith('sk-ant-')) {
+      if(out) out.textContent = 'Set your Caleb API key to enable AI assistance.';
+      return;
+    }
+    var sys = 'You are CALEB-E, the RRN Employer Partner Assistant. Help with hiring, interviews, and candidate pipeline. Never discuss member recovery or clinical data. Be brief — 2-3 sentences max. End with a next action.';
+    fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:250,system:sys,messages:[{role:'user',content:q}]})
+    }).then(function(r){return r.json();}).then(function(d){
+      var ans=(d.content&&d.content[0]&&d.content[0].text)||'I could not process that.';
+      if(out) out.textContent = ans;
+      if(window._calebSpeak) window._calebSpeak(ans);
+    }).catch(function(){
+      if(out) out.textContent = 'Could not reach assistant.';
+    });
+  };
+
   var empId = session && (session.id || session.username) ? (session.id || session.username) : 'employer';
   var employers = (platform && platform.employers) || [];
   var thisEmp = employers.find(function(e){ return e.id === empId || e.email === (session && session.email); }) || employers[0] || { name: 'Partner Organization', industry: 'Industrial', tier: 'standard' };
@@ -46275,8 +46326,14 @@ function EmployerDashboard({ platform, session, toast, setActive }) {
         React.createElement('div', { style:{ display:'flex', gap:'0.5rem' } },
           !saved && React.createElement('button', { onClick:function(){ saveToPool(c); }, style:{ padding:'0.4rem 0.9rem', borderRadius:7, background:'var(--bg3)', border:'1px solid var(--bdr2)', color:'var(--gold)', cursor:'pointer', fontSize:'0.82rem' } }, '⭐ Save'),
           !req
-            ? React.createElement('button', { onClick:function(){ reqInterview(c); }, style:{ padding:'0.4rem 1.25rem', borderRadius:7, background:'var(--gold)', color:'var(--navy)', border:'none', cursor:'pointer', fontWeight:700, fontSize:'0.85rem' } }, '📅 Request Interview')
-            : React.createElement('span', { style:{ padding:'0.4rem 0.85rem', fontSize:'0.78rem', color:'var(--l5)', fontWeight:600 } }, '📅 Interview Requested ' + req.date)
+            ? React.createElement('div', { style:{ display:'flex', gap:'0.5rem' } },
+                React.createElement('button', { onClick:function(){ reqInterview(c); }, style:{ padding:'0.4rem 1.25rem', borderRadius:7, background:'var(--bg3)', border:'1px solid var(--bdr2)', color:'var(--gold)', cursor:'pointer', fontWeight:700, fontSize:'0.85rem' } }, '📅 Request Interview'),
+                React.createElement('button', { onClick:function(){ launchInterview(c); }, style:{ padding:'0.4rem 1.25rem', borderRadius:7, background:'var(--gold)', color:'var(--navy)', border:'none', cursor:'pointer', fontWeight:700, fontSize:'0.85rem' } }, '🎥 Start Virtual Interview')
+              )
+            : React.createElement('div', { style:{ display:'flex', gap:'0.5rem', alignItems:'center' } },
+                React.createElement('span', { style:{ padding:'0.4rem 0.85rem', fontSize:'0.78rem', color:'var(--l5)', fontWeight:600 } }, '📅 Interview Requested ' + req.date),
+                React.createElement('button', { onClick:function(){ launchInterview(c); }, style:{ padding:'0.4rem 1rem', borderRadius:7, background:'var(--gold)', color:'var(--navy)', border:'none', cursor:'pointer', fontWeight:700, fontSize:'0.82rem' } }, '🎥 Join Virtual')
+              )
         )
       ),
 
@@ -46369,7 +46426,71 @@ function EmployerDashboard({ platform, session, toast, setActive }) {
   }
 
   // -- MAIN DASHBOARD LAYOUT -------------------------------------------------
-  return React.createElement('div', { style:{ maxWidth:1100, margin:'0 auto', padding:'1rem' } },
+  return React.createElement('div', { style:{ maxWidth:1100, margin:'0 auto', padding:'1rem', position:'relative' } },
+
+    // -- VIRTUAL INTERVIEW OVERLAY ------------------------------------------
+    activeInterview && React.createElement('div', { style:{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.85)', zIndex:9000, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' } },
+      React.createElement('div', { style:{ width:'95vw', maxWidth:1100, height:'85vh', background:'var(--bg1)', borderRadius:14, border:'1px solid var(--bdr)', display:'flex', flexDirection:'column', overflow:'hidden' } },
+        // Interview header
+        React.createElement('div', { style:{ padding:'0.75rem 1.25rem', borderBottom:'1px solid var(--bdr)', display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg2)' } },
+          React.createElement('div', null,
+            React.createElement('div', { style:{ fontWeight:700, color:'var(--dtxt)', fontSize:'0.95rem' } }, '🎥 Virtual Interview — ' + activeInterview.candidate.safeName),
+            React.createElement('div', { style:{ fontSize:'0.72rem', color:'var(--dmuted)' } }, 'Started ' + activeInterview.startTime + ' · Room: ' + activeInterview.roomId.slice(-12))
+          ),
+          React.createElement('div', { style:{ display:'flex', gap:'0.5rem' } },
+            React.createElement('button', { onClick:function(){ window.open('https://meet.jit.si/'+activeInterview.roomId,'_blank'); }, style:{ padding:'0.4rem 1rem', borderRadius:7, background:'var(--gold)', color:'var(--navy)', border:'none', cursor:'pointer', fontWeight:700, fontSize:'0.82rem' } }, '↗ Open in New Tab'),
+            React.createElement('button', { onClick:function(){ setActiveInterview(null); }, style:{ padding:'0.4rem 1rem', borderRadius:7, background:'rgba(252,129,129,0.15)', border:'1px solid rgba(252,129,129,0.4)', color:'#fc8181', cursor:'pointer', fontSize:'0.82rem' } }, '✕ End Interview')
+          )
+        ),
+        // Jitsi iframe
+        React.createElement('iframe', {
+          src: 'https://meet.jit.si/' + activeInterview.roomId + '#config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false&userInfo.displayName=' + encodeURIComponent(thisEmp.name || 'Employer'),
+          style:{ flex:1, border:'none', width:'100%' },
+          allow: 'camera; microphone; display-capture; autoplay',
+          title: 'Virtual Interview'
+        })
+      )
+    ),
+
+    // -- CALEB-E SIDEBAR ----------------------------------------------------
+    calebEOpen && React.createElement('div', { style:{ position:'fixed', right:0, top:0, bottom:0, width:320, background:'var(--bg1)', border:'1px solid var(--bdr)', borderRight:'none', zIndex:800, display:'flex', flexDirection:'column', boxShadow:'-4px 0 20px rgba(0,0,0,0.3)' } },
+      React.createElement('div', { style:{ padding:'0.85rem 1rem', borderBottom:'1px solid var(--bdr)', display:'flex', alignItems:'center', justifyContent:'space-between', background:'var(--bg2)' } },
+        React.createElement('div', null,
+          React.createElement('div', { style:{ fontWeight:700, color:'var(--gold)', fontSize:'0.85rem' } }, '🤖 CALEB-E · Hiring Assistant'),
+          React.createElement('div', { style:{ fontSize:'0.68rem', color:'var(--dmuted)' } }, 'Hiring & interview help only')
+        ),
+        React.createElement('button', { onClick:function(){ setCalebEOpen(false); }, style:{ background:'transparent', border:'none', color:'var(--dmuted)', cursor:'pointer', fontSize:'1.2rem', lineHeight:1 } }, '✕')
+      ),
+      // Quick actions
+      React.createElement('div', { style:{ padding:'0.75rem 1rem', borderBottom:'1px solid var(--bdr)', display:'flex', flexWrap:'wrap', gap:'0.4rem' } },
+        ['Show interview-ready candidates','How to request an interview','Start a virtual interview','What certifications do candidates have'].map(function(prompt) {
+          return React.createElement('button', { key:prompt, onClick:function(){
+            setCalebEMsg(prompt);
+            setTimeout(function(){
+              var i = document.getElementById('caleb-e-input');
+              if(i){ i.value = prompt; }
+              sendCalebE();
+            }, 50);
+          }, style:{ fontSize:'0.68rem', padding:'0.3rem 0.6rem', borderRadius:5, background:'var(--bg3)', border:'1px solid var(--bdr2)', color:'var(--dtxt)', cursor:'pointer', lineHeight:1.3, textAlign:'left' } }, prompt);
+        })
+      ),
+      // Output
+      React.createElement('div', { id:'caleb-e-output', style:{ flex:1, padding:'1rem', fontSize:'0.78rem', color:'var(--dtxt)', lineHeight:1.6, overflowY:'auto', whiteSpace:'pre-wrap' } },
+        'Ask me about candidates, interviews, or hiring.'
+      ),
+      // Input
+      React.createElement('div', { style:{ padding:'0.75rem 1rem', borderTop:'1px solid var(--bdr)', display:'flex', gap:'0.5rem' } },
+        React.createElement('input', { id:'caleb-e-input', type:'text', placeholder:'Ask about hiring...', value:calebEMsg, onChange:function(e){ setCalebEMsg(e.target.value); }, onKeyDown:function(e){ if(e.key==='Enter'){ e.preventDefault(); sendCalebE(); } }, style:{ flex:1, padding:'0.45rem 0.7rem', borderRadius:7, background:'var(--bg3)', border:'1px solid var(--bdr2)', color:'var(--dtxt)', fontSize:'0.8rem', fontFamily:'inherit' } }),
+        React.createElement('button', { onClick:sendCalebE, style:{ padding:'0.45rem 0.85rem', borderRadius:7, background:'var(--gold)', color:'var(--navy)', border:'none', cursor:'pointer', fontWeight:700, fontSize:'0.8rem' } }, '→')
+      )
+    ),
+
+    // -- CALEB-E TOGGLE BUTTON (always visible in employer view) -------------
+    React.createElement('button', {
+      onClick:function(){ setCalebEOpen(!calebEOpen); },
+      style:{ position:'fixed', right:calebEOpen?324:16, bottom:80, zIndex:850, width:52, height:52, borderRadius:'50%', background:'var(--gold)', color:'var(--navy)', border:'none', cursor:'pointer', fontWeight:900, fontSize:'1.2rem', boxShadow:'0 4px 16px rgba(200,145,58,0.4)', transition:'right 0.3s', display:'flex', alignItems:'center', justifyContent:'center' },
+      title: 'CALEB-E Hiring Assistant'
+    }, calebEOpen ? '✕' : '🤖'),
 
     // -- HEADER ---------------------------------------------------------------
     React.createElement('div', { style:{ marginBottom:'1.25rem' } },
@@ -47680,7 +47801,7 @@ function App() {
 (function(){
   if(!('serviceWorker' in navigator)) return;
   var swCode = [
-    'const CACHE = "rrn-v54";',
+    'const CACHE = "rrn-v58";',
     'const ASSETS = ["/rrn-platform/", "/rrn-platform/index.html"];',
     'self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).catch(()=>{})));',
     'self.addEventListener("fetch", e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)).catch(() => caches.match("/rrn-platform/"))));'
@@ -54869,6 +54990,33 @@ window._cSend=function(){
     return;
   }
 
+  // CALEB-E: L7 EMPLOYER INTENT GATE (42 CFR Part 2 hard lock)
+  // Employers MUST NOT access recovery data, step progress, or clinical content.
+  var _isEmployer = (function(){
+    var sess = window._rrnSession || window._rrnAutoSession || {};
+    return (sess.level === 7 || sess.role === 7);
+  })();
+
+  if(_isEmployer) {
+    // Blocked intents — 42 CFR Part 2 compliance
+    var _BLOCKED_EMPLOYER = [
+      'recovery','lesson','step','curriculum','12 step','sobriety',
+      'sponsor','counselor','testimony','prayer','praise','holy ghost',
+      'baptism','repent','addiction','substance','relapse','trigger',
+      'journal','accountability partner','scripture','progress','ministry',
+      'acts 2','caleb memory','long term memory'
+    ];
+    var _isBlocked = _BLOCKED_EMPLOYER.some(function(b){ return ql.indexOf(b) >= 0; });
+    if(_isBlocked) {
+      var _blockMsg = "I can only assist with hiring, interviews, and candidate pipeline management here. For other questions, contact your RRN workforce coordinator.";
+      if(ab){ ab.style.display=''; ab.textContent = _blockMsg; }
+      window._calebSpeak(_blockMsg);
+      if(window.RRN_EVENTS) RRN_EVENTS.emit('compliance.part2_warning', { context: 'employer_blocked_recovery_query', severity: 'blocked' });
+      _micSetStatus(window._micGranted ? 'listening' : 'idle');
+      return;
+    }
+  }
+
   // Start telemetry timer for CALEB API call
   window._calebT0 = performance.now();
   // ── CALEB UPGRADE: Distress detection (caleb-long-term-memory skill) ──────
@@ -54974,6 +55122,42 @@ window._cSend=function(){
           _turns.push({role:'user',content:q}); 
           localStorage.setItem('caleb_session_turns', JSON.stringify(_turns.slice(-30)));
         } catch(e) {}
+      }
+
+      // CALEB-E: Override system prompt for L7 employers (42 CFR Part 2)
+      if(_isEmployer) {
+        var _empName = (_sess2.company || _sess2.name || 'Partner Organization');
+        var _empSys = [
+          'You are CALEB-E, the RRN Employer Partner Assistant.',
+          'You help employer partners with: hiring pipeline, interview scheduling, candidate questions, job posting guidance, and RRN workforce program information.',
+          '',
+          'EMPLOYER: ' + _empName,
+          '',
+          'HARD RULES — NEVER VIOLATE:',
+          '- Never discuss member recovery, steps, lessons, counseling, testimony, or any clinical data.',
+          '- Never reveal member full legal names — use first name + last initial or candidate ID only.',
+          '- Only share data the member has explicitly consented to share with employers.',
+          '- If asked about recovery content, redirect: "I can only assist with hiring and workforce matters."',
+          '',
+          'YOUR JOB: Help ' + _empName + ' find, evaluate, schedule, and hire RRN workforce-ready candidates.',
+          'Be direct, professional, and efficient. No more than 3 sentences per response.',
+          'End every response with a specific next action for the employer.',
+        ].join('\n');
+        var _empMsg = q;
+        if(ab){ ab.style.display=''; ab.innerHTML='<div style="color:#c8913a;font-size:0.65rem;font-style:italic;">Thinking...</div>'; }
+        fetch('https://api.anthropic.com/v1/messages',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-api-key':akey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+          body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:300,system:_empSys,messages:[{role:'user',content:_empMsg}]})
+        }).then(function(r){return r.json();}).then(function(d){
+          var ans=(d.content&&d.content[0]&&d.content[0].text)||'I could not process that.';
+          if(ab){ab.style.display='';ab.innerHTML='<div style="font-size:0.7rem;color:#e2e8f0;line-height:1.5;">'+ans+'</div>';}
+          window._calebSpeak(ans);
+          if(window.RRN_TELEMETRY&&window._calebT0){RRN_TELEMETRY.record('caleb_response',performance.now()-window._calebT0,'success',{model:'caleb-e'});window._calebT0=null;}
+          if(window.RRN_EVENTS) RRN_EVENTS.emit('caleb.response_sent',{intent:'employer_query'});
+        }).catch(function(){window._calebSpeak('I could not reach the assistant right now.');});
+        _micSetStatus(window._micGranted ? 'listening' : 'idle');
+        return;
       }
 
       var sys2 = [
